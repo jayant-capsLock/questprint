@@ -1,0 +1,246 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap');
+
+.nav{
+    
+    display: flex;
+    justify-content: center;
+    gap: 4vw;
+    background-color: #240046;
+    padding: 1rem;
+    text-decoration: none;
+    border-bottom-left-radius: 1vw;
+    border-bottom-right-radius: 1vw;
+    transition: 0.3s;
+}
+
+body{
+    margin: 0;
+    font-family: Arial, sans-serif;
+    text-decoration: none;
+    background-color: #10002b;
+}
+
+.nav-link{
+    color: #ffffff;
+    text-decoration: none;
+    font-size: 1.2rem;
+    font-family: 'impact', sans-serif;
+    transition: 0.3s;
+}
+.nav-link:hover{
+    color: #d3acff;
+    transition: 0.3s;
+}
+
+.quizBoxContainer{
+    display: flex;
+    min-height: 50rem;
+    justify-content: center;
+    align-items: center;
+    background-color: #10002b;
+
+}
+
+.QuizBox{
+    cursor: pointer;
+    font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+    color: #d3acff;
+    position: relative;
+    height: 70vh;
+    width: 40vw;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 2vw;
+    background: linear-gradient(
+  135deg,
+  #1f0d49,
+  #3f2679,
+
+  #1b1744
+);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: 0.02s ease;
+    
+    
+}
+#glowLineNav{
+    height: 3px;
+    background-color: #ffffff;
+    box-shadow: 0px 20px 25px 15px rgb(255, 0, 106);
+    z-index: -10;
+}
+
+.welcomeMessage{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+}
+.discoverPhrase{
+    color:white;
+    opacity:0;
+    animation:fadeUp 1s forwards;
+}
+.intro{
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 500;
+    font-size: 80%;
+    color:#d3acff;
+    opacity:0;
+    animation:fadeUp 1s forwards;
+    animation-delay:1.5s;
+    text-shadow: 0 0 10px rgba(0,0,0,0.4);
+}
+.prompt{
+    color:#d3acff;
+    opacity:0;
+    animation:fadeUp 1s forwards;
+    animation-delay:3.5s;
+    font-family:'Rajdhani', sans-serif;
+    font-weight:700;
+}
+
+@keyframes fadeUp{
+
+    from{
+        opacity:0;
+        transform:translateY(20px);
+    }
+
+    to{
+        opacity:1;
+        transform:translateY(0);
+    }
+
+}
+
+.questionScreen{
+    width:80%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2rem;
+    text-align: center;
+    font-size: 80%;
+}
+
+.questionText{
+    text-align:center;
+    color:white;
+    font-family:'Rajdhani', sans-serif;
+    font-size:2rem;
+}
+
+.sliderLabels{
+    width:100%;
+    display:flex;
+    justify-content:space-between;
+    color:#d3acff;
+    font-family:'Rajdhani', sans-serif;
+}
+
+input[type="range"]{
+    -webkit-appearance:none;
+    appearance:none;
+    width:80%;
+    background:transparent;
+
+}
+
+input[type="range"]::-webkit-slider-runnable-track{
+    height:10px;
+    border-radius:999px;
+
+    background:linear-gradient(
+        90deg,
+        #7209b7,
+        #f72585
+    );
+}
+
+input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+
+    width:24px;
+    height:24px;
+
+    border-radius:50%;
+
+    background:white;
+
+    border:3px solid #f72585;
+
+    margin-top:-7px;
+
+    cursor:pointer;
+
+    transition: 0.3s;
+
+    box-shadow:
+        0 0 10px #f72585,
+        0 0 20px #f72585;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover{
+    transform:scale(1.15);
+}
+
+.progressBar{
+    width:80%;
+    height:8px;
+    background:#2d1b69;
+    border-radius:999px;
+    overflow:hidden;
+}
+
+.progressFill{
+    height:100%;
+    background:linear-gradient(
+        90deg,
+        #7209b7,
+        #f72585
+    );
+    transition:0.4s;
+}
+
+.slideOutLeft{
+    animation: slideOutLeft 0.5s forwards;
+}
+
+@keyframes slideOutLeft{
+    from{
+        opacity:1;
+        transform:translateX(0);
+    }
+
+    to{
+        opacity:0;
+        transform:translateX(-100px);
+    }
+}
+
+
+
+@keyframes slideInRight{
+    from{
+        opacity:0;
+        transform:translateX(100px);
+    }
+
+    to{
+        opacity:1;
+        transform:translateX(0);
+    }
+}
+
+.questionScreen {
+  animation: slideInRight 0.5s forwards;
+}
+
+.questionScreen.slideOutLeft {
+  animation: slideOutLeft 0.5s forwards !important;
+}
+
