@@ -1,8 +1,12 @@
 import React, { useRef, useState } from "react";
 import { personalityQuestions } from "./questions";
 import { useEffect } from "react";
+import { games } from "../data/games.js";
+import { calculateMatch } from "./matchingEngine.js";
+import { getGameImage } from "../data/rawg.js";
+import axios from "axios";
 
-const QuizBox = () => {
+const QuizBox = ({ results, setResults, screen, setScreen }) => {
   const canMove = useRef(false);
   const timeoutRef = useRef(null);
 
@@ -88,12 +92,86 @@ const QuizBox = () => {
     e.currentTarget.style.boxShadow = "none";
   };
 
-  const [screen, setScreen] = useState("welcome");
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [sliderValue, setSliderValue] = useState(50);
   const [answers, setAnswers] = useState({});
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [questionAnimating, setQuestionAnimating] = useState(false);
+
+  const [gameImages, setGameImages] = useState({});
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [personality, setPersonality] = useState({});
+
+  useEffect(() => {
+    const savedUser = JSON.parse(localStorage.getItem("questprint-user"));
+
+    if (savedUser) {
+      setScreen("results");
+    }
+  }, []);
+
+  const handleLogin = async () => {
+    try {
+      const response = await axios.post("http://localhost:5000/login", {
+        email: loginEmail,
+        password: loginPassword,
+      });
+
+      localStorage.setItem("token", response.data.token);
+
+      const questprintData = localStorage.getItem("questprint-data");
+
+      if (questprintData) {
+        await axios.post(
+          "http://localhost:5000/save-questprint",
+          JSON.parse(questprintData),
+          {
+            headers: {
+              Authorization: response.data.token,
+            },
+          },
+        );
+      }
+
+      localStorage.setItem(
+        "questprint-user",
+        JSON.stringify(response.data.user),
+      );
+
+      alert("Login successful!");
+
+      window.location.reload();
+    } catch (err) {
+      console.log(err);
+
+      alert(err.response?.data?.message || "Login failed");
+    }
+  };
+
+  const handleCreateAccount = async () => {
+    try {
+      await axios.post("http://localhost:5000/register", {
+        username,
+        email,
+        password,
+      });
+
+      setScreen("login");
+    } catch (err) {
+      console.log(err);
+      console.log(err.response);
+
+      alert(
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          "Registration failed",
+      );
+    }
+  };
 
   const startQuiz = () => {
     setIsTransitioning(true);
@@ -108,6 +186,26 @@ const QuizBox = () => {
     const currentId = personalityQuestions[currentQuestion].id;
     setSliderValue(answers[currentId] ?? 50);
   }, [currentQuestion]);
+
+  useEffect(() => {
+    async function loadImages() {
+      const images = {};
+
+      for (const game of results.slice(0, 3)) {
+        try {
+          images[game.name] = await getGameImage(game.name);
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      setGameImages(images);
+    }
+
+    if (screen === "results" && results.length > 0) {
+      loadImages();
+    }
+  }, [screen, results]);
 
   const handleNextQuestion = () => {
     const current = personalityQuestions[currentQuestion];
@@ -137,6 +235,8 @@ const QuizBox = () => {
   };
 
   const saveCurrentAnswer = () => {
+    console.log("saveCurrentAnswer");
+    console.log("currentQuestion:", currentQuestion);
     const current = personalityQuestions[currentQuestion];
 
     setAnswers((prev) => ({ ...prev, [current.id]: sliderValue }));
@@ -148,7 +248,89 @@ const QuizBox = () => {
         setQuestionAnimating(false);
       }, 500);
     } else {
-      console.log("quiz complete");
+      console.log("LAST QUESTION REACHED");
+      // Quiz is complete - save everything to localStorage
+      const finalAnswers = {
+        ...answers,
+        [current.id]: sliderValue,
+      };
+
+      setPersonality(finalAnswers);
+
+      const recommendations = games
+        .map((game) => ({
+          ...game,
+          match: calculateMatch(finalAnswers, game),
+        }))
+        .sort((a, b) => b.match - a.match);
+
+      localStorage.setItem(
+        "questprint-data",
+        JSON.stringify({
+          personality: finalAnswers,
+          recommendations,
+        }),
+      );
+
+      setResults(recommendations);
+      setScreen("results");
+    }
+  };
+
+  const handleSaveQuestprint = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      // Validate token exists
+      if (!token) {
+        alert("Please log in first");
+        setScreen("login");
+        return;
+      }
+
+      // Get questprint data from localStorage
+      const questprintData = localStorage.getItem("questprint-data");
+
+      if (!questprintData) {
+        alert("No questprint data found. Please complete the quiz first.");
+        return;
+      }
+
+      const questprint = JSON.parse(questprintData);
+
+      console.log("Saving questprint:", questprint);
+
+      const response = await axios.post(
+        "http://localhost:5000/save-questprint",
+        questprint,
+        {
+          headers: {
+            Authorization: token,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      console.log("Save response:", response.data);
+
+      alert("Questprint saved successfully!");
+
+      // Redirect to success screen
+      setScreen("accountCreated");
+    } catch (err) {
+      console.error("Save Questprint Error:", err);
+
+      // Log detailed error info
+      if (err.response) {
+        console.error("Backend error:", err.response.status, err.response.data);
+        alert(err.response?.data?.message || "Failed to save Questprint");
+      } else if (err.request) {
+        console.error("No response from server:", err.request);
+        alert("No response from server. Check if backend is running.");
+      } else {
+        console.error("Error:", err.message);
+        alert(err.message);
+      }
     }
   };
 
@@ -206,12 +388,138 @@ const QuizBox = () => {
             <p>{sliderValue}</p>
             <span>{personalityQuestions[currentQuestion].rightLabel}</span>
           </div>
+          <div id="buttons">
+            <button onClick={handlePrevQuestion}>Back</button>
 
-          <button onClick={handleNextQuestion}>Next</button>
+            <button
+              onClick={handleNextQuestion}
+              disabled={currentQuestion === personalityQuestions.length - 1}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+      {screen === "results" && (
+        <div className="resultsScreen">
+          <h1>Your Matches</h1>
+          <div className="resultsGrid">
+            {results.slice(0, 3).map((game) => (
+              <div
+                className="resultGames"
+                key={game.id}
+                onClick={() => {
+                  document.getElementById(`game-${game.name}`)?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                  });
+                }}
+                style={{
+                  backgroundImage: `url(${gameImages[game.name]})`,
+                }}
+              >
+                <div className="cardOverlay">
+                  <div className="matchBadge">{game.match}%</div>
 
-          <button onClick={handlePrevQuestion}>Back</button>
+                  <h2>{game.name}</h2>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button
+            className="saveQuestprintBtn"
+            onClick={() => {
+              const token = localStorage.getItem("token");
 
-          <pre>{JSON.stringify(answers, null, 2)}</pre>
+              if (token) {
+                handleSaveQuestprint();
+              } else {
+                setScreen("signup");
+              }
+            }}
+          >
+            <div>
+              <h2>Save</h2>
+              <p>Your Questprint</p>
+            </div>
+          </button>
+        </div>
+      )}
+      {screen === "signup" && (
+        <div className="signupScreen">
+          <h1>Create Account</h1>
+          <div className="signupForm">
+            <input
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+
+            <button onClick={handleCreateAccount}>Create Account</button>
+
+            <p className="switchAuth">
+              Already have an account?{" "}
+              <span className="authLink" onClick={() => setScreen("login")}>
+                Sign In
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
+      {screen === "login" && (
+        <div className="signupScreen">
+          <h1>Sign In</h1>
+
+          <div className="signupForm">
+            <input
+              type="email"
+              placeholder="Email"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+            />
+
+            <input
+              type="password"
+              placeholder="Password"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+            />
+
+            <button onClick={handleLogin}>Sign In</button>
+
+            <p className="switchAuth">
+              Don't have an account?{" "}
+              <span className="authLink" onClick={() => setScreen("signup")}>
+                Create Account
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
+      {screen === "accountCreated" && (
+        <div className="accountCreated">
+          <h1>Account Created</h1>
+
+          <p>Your Questprint has been saved.</p>
+
+          <button onClick={() => setScreen("results")}>
+            View Recommendations
+          </button>
         </div>
       )}
     </div>

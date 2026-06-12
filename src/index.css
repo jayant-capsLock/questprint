@@ -12,6 +12,7 @@
     border-bottom-left-radius: 1vw;
     border-bottom-right-radius: 1vw;
     transition: 0.3s;
+    
 }
 
 body{
@@ -25,7 +26,7 @@ body{
     color: #ffffff;
     text-decoration: none;
     font-size: 1.2rem;
-    font-family: 'impact', sans-serif;
+    font-family:'Rajdhani', sans-serif;
     transition: 0.3s;
 }
 .nav-link:hover{
@@ -43,11 +44,14 @@ body{
 }
 
 .QuizBox{
+    margin-top: 4rem;
+    margin-bottom: 2rem;
     cursor: pointer;
     font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
     color: #d3acff;
     position: relative;
-    height: 70vh;
+    height: auto;
+    min-height: 70vh;
     width: 40vw;
     display: flex;
     justify-content: center;
@@ -71,6 +75,7 @@ body{
     background-color: #ffffff;
     box-shadow: 0px 20px 25px 15px rgb(255, 0, 106);
     z-index: -10;
+    
 }
 
 .welcomeMessage{
@@ -244,3 +249,788 @@ input[type="range"]::-webkit-slider-thumb:hover{
   animation: slideOutLeft 0.5s forwards !important;
 }
 
+button{
+    border-radius: 100px;
+    padding: 2%;
+    background-color: #3f2679;
+    color: #ffffff;
+    cursor: pointer;
+    transition: 0.3s ease;
+}
+
+button:hover{
+    background-color: #ffffff;
+    color: #f72585;
+    box-shadow: 0px 0px 20px 3px#f72585;
+}
+
+button:disabled {
+  background-color: rgb(116, 116, 116);
+  cursor: not-allowed;
+  opacity: 0.6;
+  border: 4px solid;
+}
+#buttons{
+    display: flex;
+    position: relative;
+    margin-top: 20%;    
+    width: 100%;
+    justify-content: center;
+    gap: 5%;
+}
+
+.resultsScreen {
+    
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+    padding: 2rem;
+    width: 90%;
+}
+
+.resultsScreen h1 {
+    font-size: 2.5rem;
+    color: white;
+    text-shadow: 0 0 15px #7c5767;
+}
+
+.resultsGrid {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    width: 100%;
+}
+
+.resultGames {
+    position: relative;
+    width: 250px;
+    min-height: 180px;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+
+    padding: 1.5rem;
+
+    border-radius: 20px;
+
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(10px);
+
+    border: 1px solid rgba(255,255,255,0.1);
+
+    transition: all 0.3s ease;
+
+    position: relative;
+
+    width: 220px;
+    height: 320px;
+
+    border-radius: 20px;
+
+    background-size: cover;
+    background-position: center;
+
+    overflow: hidden;
+
+    transition: 0.3s ease;
+
+    cursor: pointer;
+}
+
+.resultGames:hover {
+    transform: translateY(-8px);
+
+    box-shadow:
+        0 0 15px #ff006e,
+        0 0 30px #ff006e55;
+
+        
+}
+
+.resultGames h2 {
+    color: white;
+    text-align: center;
+    margin-bottom: 0.5rem;
+    color: white;
+    margin: 0;
+
+    text-shadow:
+        0 0 10px black,
+        0 0 20px black;
+}
+
+.matchText {
+    color: #bdbdbd;
+    font-size: 0.9rem;
+}
+
+.matchBadge {
+    position: absolute;
+
+    top: 15px;
+    right: 15px;
+
+    width: 55px;
+    height: 55px;
+
+    border-radius: 50%;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    font-weight: bold;
+
+    background: linear-gradient(
+        135deg,
+        #ff006e,
+        #8338ec
+    );
+
+    color: white;
+
+    box-shadow:
+        0 0 10px #ff006e,
+        0 0 20px #8338ec;
+
+     
+    position: absolute;
+
+    top: 15px;
+    right: 15px;
+
+    width: 55px;
+    height: 55px;
+
+    border-radius: 50%;
+
+    display: flex;
+    flex-direction: column;   /* important */
+    justify-content: center;
+    align-items: center;
+
+    text-align: center;
+    line-height: 1;
+
+    font-size: 0.85rem;
+    font-weight: bold;
+
+    padding: 0;
+
+    font-family:'Rajdhani', sans-serif;
+
+    position: absolute;
+
+    top: 15px;
+    right: 15px;
+
+    width: 55px;
+    height: 55px;
+
+    border-radius: 50%;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    backdrop-filter: blur(10px);
+
+    background: rgba(255,255,255,0.15);
+
+    border: 1px solid rgba(255,255,255,0.2);
+
+    color: white;
+    font-weight: bold;
+
+}
+
+.gameCover {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+    background: #2d1b69;
+}
+
+.cardOverlay {
+    position: absolute;
+    inset: 0;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+
+    padding: 1rem;
+
+    background: linear-gradient(
+        to top,
+        rgba(0,0,0,0.8),
+        rgba(0,0,0,0.1)
+    );
+    font-family:'Rajdhani', sans-serif;
+}
+
+.resultGames::before {
+    content: "";
+
+    position: absolute;
+    top: -50%;
+    left: -150%;
+
+    width: 60%;
+    height: 200%;
+
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255,255,255,0.25),
+        rgba(255,255,255,0.45),
+        rgba(255,255,255,0.25),
+        transparent
+    );
+
+    transform: rotate(25deg);
+
+    transition: left 0.7s ease;
+
+    pointer-events: none;
+
+    z-index: 2;
+}
+
+.resultGames:hover::before {
+    left: 200%;
+}
+
+.gameInfoContainer {
+    width: 100%;
+    margin-top: 4rem;
+}
+
+.gameInfoSection {
+    min-height: 70vh;
+
+    padding: 4rem;
+
+    color: white;
+
+    border-top: 1px solid rgba(255,255,255,0.1);
+
+    background: rgba(255,255,255,0.02);
+}
+
+.gameInfoSection h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 3rem;
+
+    color: white;
+
+    margin-bottom: 1rem;
+}
+
+.gameInfoSection{
+    min-height:70vh;
+
+    padding:4rem;
+
+    color:white;
+
+    border-top:1px solid rgba(255,255,255,0.1);
+
+    display:flex;
+    flex-direction:column;
+    gap:1rem;
+}
+
+.matchPercent{
+    color:#f72585;
+    font-size:1.3rem;
+    font-weight:bold;
+}
+
+.traitList{
+    display:flex;
+    flex-direction:column;
+    gap:0.5rem;
+
+    font-family:'Rajdhani',sans-serif;
+}
+
+.infoCover{
+     margin:0 auto;
+    width:100%;
+    max-width:900px;
+    height:450px;
+
+    object-fit:cover;
+
+    border-radius:20px;
+
+    box-shadow:
+        0 0 30px rgba(247,37,133,.3);
+}
+
+.bigMatchBadge{
+    display:inline-block;
+
+    padding:0.8rem 1.5rem;
+
+    border-radius:999px;
+
+    background:linear-gradient(
+        135deg,
+        #f72585,
+        #7209b7
+    );
+
+    color:white;
+
+    font-weight:bold;
+
+    margin-bottom:1rem;
+}
+.genreContainer{
+    display:flex;
+    gap:.7rem;
+    flex-wrap:wrap;
+}
+
+.genreTag{
+    padding:.5rem 1rem;
+
+    border-radius:999px;
+
+    background:#240046;
+
+    color:#d3acff;
+
+    border:1px solid rgba(255,255,255,.1);
+}
+
+.traitBar{
+    display:flex;
+    align-items:center;
+    gap:1rem;
+
+    margin:.8rem 0;
+}
+
+.bar{
+    flex:1;
+
+    height:10px;
+
+    border-radius:999px;
+
+    background:#240046;
+}
+
+.fill{
+    height:100%;
+
+    border-radius:999px;
+
+    background:linear-gradient(
+        90deg,
+        #7209b7,
+        #f72585
+    );
+}
+
+.gameInfoSection{
+
+    
+
+    max-width:1000px;
+
+    margin:6rem auto;
+
+    padding:3rem;
+
+    border-radius:25px;
+
+    background:rgba(255,255,255,.03);
+
+    backdrop-filter:blur(10px);
+
+    border:1px solid rgba(255,255,255,.08);
+}
+
+.saveQuestprintBtn{
+    margin-top: 2rem;
+
+    padding: 2rem;
+
+    border-radius: 999px;
+
+    background: linear-gradient(
+        135deg,
+        #7209b7,
+        #f72585
+    );
+
+    color: white;
+
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+
+    border: none;
+
+    transition: .3s ease;
+
+    background: rgba(255,255,255,0.08);
+
+    backdrop-filter: blur(15px);
+
+    border: 1px solid rgba(255,255,255,0.15);
+
+    color: white;
+
+    box-shadow: none;
+}
+
+.saveQuestprintBtn:hover{
+    background: rgba(255,255,255,0.12);
+
+    border-color: rgba(247,37,133,.5);
+
+    box-shadow:
+        0 0 15px rgba(247,37,133,.3);
+
+    transform: translateY(-3px);
+}
+
+.signupScreen{
+    width:100%;
+
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+
+    text-align:center;
+}
+
+.signupScreen h1{
+    font-family:'Bebas Neue', sans-serif;
+    font-size:3rem;
+
+    color:white;
+
+    letter-spacing:1px;
+
+    margin-bottom:2rem;
+
+    text-shadow:
+        0 0 10px rgba(247,37,133,.5);
+}
+
+.signupForm{
+    width:100%;
+    max-width:400px;
+
+    display:flex;
+    flex-direction:column;
+
+    gap:1rem;
+}
+
+.signupForm input{
+    padding:1rem 1.2rem;
+
+    border:none;
+    outline:none;
+
+    border-radius:14px;
+
+    background:rgba(255,255,255,.08);
+
+    backdrop-filter:blur(10px);
+
+    border:1px solid rgba(255,255,255,.1);
+
+    color:white;
+
+    font-size:1rem;
+
+    font-family:'Rajdhani', sans-serif;
+
+    transition:.3s ease;
+}
+
+.signupForm input::placeholder{
+    color:rgba(255,255,255,.5);
+}
+
+.signupForm input:focus{
+    border-color:#f72585;
+
+    box-shadow:
+        0 0 15px rgba(247,37,133,.4);
+}
+
+.signupForm button{
+    margin-top:1rem;
+
+    padding:1rem;
+
+    border:none;
+
+    border-radius:14px;
+
+    background:linear-gradient(
+        135deg,
+        #7209b7,
+        #f72585
+    );
+
+    color:white;
+
+    font-size:1.1rem;
+    font-weight:700;
+
+    font-family:'Rajdhani', sans-serif;
+
+    transition:.3s ease;
+}
+
+.signupForm button:hover{
+    transform:translateY(-3px);
+
+    box-shadow:
+        0 0 20px rgba(247,37,133,.5);
+}
+
+.switchAuth{
+    margin-top:1rem;
+
+    color:rgba(255,255,255,.7);
+
+    font-family:'Rajdhani', sans-serif;
+}
+
+.authLink{
+    color:#f72585;
+
+    font-weight:700;
+
+    cursor:pointer;
+
+    transition:.3s ease;
+}
+
+.authLink:hover{
+    text-shadow:
+        0 0 10px #f72585;
+}
+.navButton{
+    
+    background:none;
+    border:none;
+    padding:0;
+    font-family:'Rajdhani', sans-serif;
+}
+
+.navButton:hover{
+    background: none;
+    box-shadow: none;
+}
+
+.profilePage{
+    min-height:80vh;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    padding:3rem;
+}
+
+.profileCard{
+    width:700px;
+    max-width:90vw;
+
+    padding:2.5rem;
+
+    border-radius:25px;
+
+    background:rgba(255,255,255,0.05);
+
+    backdrop-filter:blur(20px);
+
+    border:1px solid rgba(255,255,255,0.08);
+
+    color:white;
+
+    box-shadow:
+        0 0 30px rgba(247,37,133,0.15);
+}
+
+.profileHeader{
+    text-align:center;
+
+    margin-bottom:2rem;
+}
+
+.avatarCircle{
+    width:100px;
+    height:100px;
+
+    margin:auto;
+    margin-bottom:1rem;
+
+    border-radius:50%;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    font-size:2.5rem;
+    font-weight:700;
+
+    color:white;
+
+    background:linear-gradient(
+        135deg,
+        #7209b7,
+        #f72585
+    );
+
+    box-shadow:
+        0 0 20px rgba(247,37,133,0.4);
+}
+
+.profileHeader h1{
+    margin:0;
+
+    font-family:'Orbitron',sans-serif;
+
+    font-size:2.2rem;
+}
+
+.profileHeader p{
+    color:#bdbdbd;
+
+    margin-top:0.5rem;
+
+    font-family:'Rajdhani',sans-serif;
+}
+
+.profileCard h2{
+    margin-bottom:1.5rem;
+
+    text-align:center;
+
+    font-family:'Rajdhani',sans-serif;
+
+    color:#d3acff;
+}
+
+.profileTraits{
+    display:flex;
+    flex-direction:column;
+
+    gap:1rem;
+}
+
+.profileTrait{
+    display:flex;
+    align-items:center;
+
+    gap:1rem;
+}
+
+.traitName{
+    width:120px;
+
+    text-transform:capitalize;
+
+    font-family:'Rajdhani',sans-serif;
+
+    font-weight:600;
+}
+
+.profileBar{
+    flex:1;
+
+    height:12px;
+
+    border-radius:999px;
+
+    background:#2b165c;
+
+    overflow:hidden;
+}
+
+.profileFill{
+    height:100%;
+
+    border-radius:999px;
+
+    background:linear-gradient(
+        90deg,
+        #7209b7,
+        #f72585
+    );
+
+    box-shadow:
+        0 0 10px #f72585;
+}
+
+.traitValue{
+    width:40px;
+
+    text-align:right;
+
+    font-family:'Rajdhani',sans-serif;
+
+    font-weight:700;
+}
+
+.profileButtons{
+    display:flex;
+    justify-content:center;
+
+    gap:1rem;
+
+    margin-top:2rem;
+}
+
+.homeBtn,
+.logoutBtn{
+    padding:0.9rem 1.6rem;
+
+    border:none;
+
+    border-radius:12px;
+
+    color:white;
+
+    font-family:'Rajdhani',sans-serif;
+    font-weight:700;
+
+    cursor:pointer;
+
+    transition:0.3s;
+}
+
+.homeBtn{
+    background:#3f2679;
+}
+
+.logoutBtn{
+    background:#f72585;
+}
+
+.homeBtn:hover,
+.logoutBtn:hover{
+    transform:translateY(-3px);
+
+    box-shadow:
+        0 0 20px rgba(247,37,133,0.4);
+}

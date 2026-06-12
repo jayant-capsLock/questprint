@@ -1,17 +1,45 @@
-import React from 'react'
-import Nav from './components/Nav.jsx'
-import QuizBox from './components/QuizBox.jsx'
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import React, { useState } from "react";
+import Nav from "./components/Nav.jsx";
+import QuizBox from "./components/QuizBox.jsx";
+import GameInfoSection from "./components/GameInfoSection";
+import Profile from "./components/Profile";
 
 const App = () => {
-  return (
-    <div className='main'>
-        <Nav />
-        <div id='glowLineNav'></div>
-        <div className='quizBoxContainer'>
-        <QuizBox />
-        </div>
-    </div>
-  )
-}
+  const token = localStorage.getItem("token");
 
-export default App
+  const [page, setPage] = useState(token ? "profile" : "home");
+  const [results, setResults] = useState([]);
+  const [screen, setScreen] = useState("welcome");
+  const [user, setUser] = useState(
+    JSON.parse(localStorage.getItem("questprint-user")),
+  );
+
+  return (
+    <>
+      {page === "home" && (
+        <div className="main">
+          <Nav
+            setScreen={setScreen}
+            screen={screen}
+            setPage={setPage}
+            user={user}
+          />
+          <div id="glowLineNav"></div>
+          <div className="quizBoxContainer">
+            <QuizBox
+              results={results}
+              setResults={setResults}
+              screen={screen}
+              setScreen={setScreen}
+            />
+          </div>
+          <GameInfoSection results={results} />
+        </div>
+      )}
+      {page === "profile" && <Profile setPage={setPage} />}
+    </>
+  );
+};
+
+export default App;
