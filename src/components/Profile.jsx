@@ -1,41 +1,52 @@
-
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-
 
 const Profile = ({ setPage }) => {
   const [user, setUser] = useState(null);
   useEffect(() => {
-  const fetchProfile = async () => {
-    try {
-      const token = localStorage.getItem("token");
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem("token");
 
-      const response = await axios.get(
-        `${import.meta.env.VITE_API_URL}/profile`,
-        {
-          headers: {
-            Authorization: token,
+        const response = await axios.get(
+          `${import.meta.env.VITE_API_URL}/profile`,
+          {
+            headers: {
+              Authorization: token,
+            },
           },
-        }
-      );
+        );
 
-      setUser(response.data.user);
-    } catch (err) {
-      console.log(err);
-    }
-  };
+        setUser(response.data.user);
+      } catch (err) {
+        console.log(err);
+      }
+    };
 
-  fetchProfile();
-}, []);
+    fetchProfile();
+  }, []);
 
   if (!user) {
     return (
       <div className="profilePage">
         <div className="profileCard">
           <h1>Loading...</h1>
+        </div>
+      </div>
+    );
+  }
+
+  // User exists but has not completed quiz
+  if (!user.quizCompleted) {
+    return (
+      <div className="profilePage">
+        <div className="profileCard">
+          <h1>No Questprint Yet</h1>
+
+          <p>Complete the personality quiz to generate your gaming profile.</p>
 
           <button className="homeBtn" onClick={() => setPage("home")}>
-            Home
+            Take Quiz
           </button>
         </div>
       </div>
