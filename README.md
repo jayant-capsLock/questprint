@@ -1,16 +1,141 @@
-# React + Vite
+# Questprint 🎮
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Questprint is a personality-based game discovery platform that helps players find games that match their preferences and playstyle.
 
-Currently, two official plugins are available:
+Instead of browsing endless lists of games, users answer a short personality quiz and receive personalized recommendations based on traits such as challenge, exploration, social interaction, creativity, and narrative preference.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Live Demo
 
-## React Compiler
+https://questprint-nine.vercel.app/
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## Features
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Personality Quiz
+
+Users answer a series of slider-based questions that measure:
+
+* Challenge
+* Exploration
+* Social Preference
+* Creativity
+* Narrative Preference
+
+### Personalized Recommendations
+
+Questprint compares quiz results against a game database and generates compatibility scores for hundreds of games.
+
+### User Accounts
+
+Users can:
+
+* Create an account
+* Log in securely
+* Save their Questprint profile
+
+### Secure Authentication
+
+Authentication is implemented using:
+
+* bcrypt for password hashing
+* JWT (JSON Web Tokens) for user authentication
+* Protected backend routes
+
+### Persistent Profiles
+
+Saved Questprints are stored in MongoDB and remain available between sessions.
+
+Users can:
+
+* View their personality profile
+* View their top game matches
+* Access their saved Questprint after logging in
+
+---
+
+## Tech Stack
+
+### Frontend
+
+* React
+* Vite
+* Axios
+* CSS
+
+### Backend
+
+* Node.js
+* Express.js
+
+### Database
+
+* MongoDB Atlas
+* Mongoose
+
+### Authentication
+
+* bcryptjs
+* JSON Web Tokens (JWT)
+
+### Deployment
+
+* Frontend: Vercel
+* Backend: Render
+* Database: MongoDB Atlas
+
+---
+
+## How It Works
+
+1. User completes the personality quiz.
+2. Personality traits are calculated.
+3. The recommendation engine compares those traits against game profiles.
+4. Matching games are ranked by compatibility score.
+5. Users can save their Questprint to their account.
+6. Profiles and recommendations are stored in MongoDB.
+
+---
+
+## Project Structure
+
+```text
+Questprint
+│
+├── src/                 Frontend (React)
+│
+├── server/
+│   ├── models/
+│   ├── middleware/
+│   └── server.js
+│
+└── MongoDB Atlas
+```
+
+---
+
+## Future Improvements
+
+* Retake Questprint
+* Expanded game database
+* Recommendation explanations
+* Wishlist functionality
+* Public Questprint profiles
+* Friend comparison system
+* Advanced filtering and search
+
+---
+
+## What I Learned
+
+This project was my first full-stack application involving:
+
+* React state management
+* Express APIs
+* MongoDB integration
+* Authentication with JWT
+* Password hashing
+* Protected routes
+* Deployment with Render and Vercel
+
+Building Questprint taught me how frontend, backend, authentication, databases, and deployment work together in a real application.
