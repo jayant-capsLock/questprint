@@ -116,7 +116,7 @@ const QuizBox = ({ results, setResults, screen, setScreen }) => {
 
   const handleLogin = async () => {
     try {
-      const response = await axios.post("http://localhost:5000/login", {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/login`, {
         email: loginEmail,
         password: loginPassword,
       });
@@ -127,7 +127,7 @@ const QuizBox = ({ results, setResults, screen, setScreen }) => {
 
       if (questprintData) {
         await axios.post(
-          "http://localhost:5000/save-questprint",
+          `${import.meta.env.VITE_API_URL}/save-questprint`,
           JSON.parse(questprintData),
           {
             headers: {
@@ -154,7 +154,7 @@ const QuizBox = ({ results, setResults, screen, setScreen }) => {
 
   const handleCreateAccount = async () => {
     try {
-      await axios.post("http://localhost:5000/register", {
+      await axios.post(`${import.meta.env.VITE_API_URL}/register`, {
         username,
         email,
         password,
@@ -301,7 +301,7 @@ const QuizBox = ({ results, setResults, screen, setScreen }) => {
       console.log("Saving questprint:", questprint);
 
       const response = await axios.post(
-        "http://localhost:5000/save-questprint",
+        `${import.meta.env.VITE_API_URL}/save-questprint`,
         questprint,
         {
           headers: {

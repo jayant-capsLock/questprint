@@ -1,13 +1,38 @@
-import React from "react";
+
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+
 
 const Profile = ({ setPage }) => {
-  const user = JSON.parse(localStorage.getItem("questprint-user"));
+  const [user, setUser] = useState(null);
+  useEffect(() => {
+  const fetchProfile = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL}/profile`,
+        {
+          headers: {
+            Authorization: token,
+          },
+        }
+      );
+
+      setUser(response.data.user);
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  fetchProfile();
+}, []);
 
   if (!user) {
     return (
       <div className="profilePage">
         <div className="profileCard">
-          <h1>No Profile Found</h1>
+          <h1>Loading...</h1>
 
           <button className="homeBtn" onClick={() => setPage("home")}>
             Home
@@ -40,7 +65,7 @@ const Profile = ({ setPage }) => {
         <h2>Your Questprint</h2>
 
         <div className="profileTraits">
-          {Object.entries(user.profile || {}).map(([trait, value]) => (
+          {Object.entries(user.personality || {}).map(([trait, value]) => (
             <div key={trait} className="profileTrait">
               <span className="traitName">{trait}</span>
 
@@ -54,6 +79,17 @@ const Profile = ({ setPage }) => {
               </div>
 
               <span className="traitValue">{value}</span>
+            </div>
+          ))}
+        </div>
+
+        <h2>Top Matches</h2>
+
+        <div className="profileRecommendations">
+          {user.recommendations?.slice(0, 3).map((game) => (
+            <div key={game.name} className="recommendationCard">
+              <h3>{game.name}</h3>
+              <p>{game.match}% Match</p>
             </div>
           ))}
         </div>

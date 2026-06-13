@@ -1034,3 +1034,25 @@ button:disabled {
     box-shadow:
         0 0 20px rgba(247,37,133,0.4);
 }
+
+.profileRecommendations {
+  display: flex;
+  gap: 20px;
+  margin-top: 20px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.recommendationCard {
+  width: 180px;
+  padding: 20px;
+  border-radius: 15px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  text-align: center;
+  transition: 0.3s;
+}
+
+.recommendationCard:hover {
+  transform: translateY(-5px);
+}
