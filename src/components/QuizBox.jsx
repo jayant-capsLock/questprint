@@ -106,13 +106,17 @@ const QuizBox = ({ results, setResults, screen, setScreen }) => {
   const [loginPassword, setLoginPassword] = useState("");
   const [personality, setPersonality] = useState({});
 
-  useEffect(() => {
-    const savedUser = JSON.parse(localStorage.getItem("questprint-user"));
+ useEffect(() => {
+  const savedData = localStorage.getItem("questprint-data");
 
-    if (savedUser) {
-      setScreen("results");
-    }
-  }, []);
+  if (savedData) {
+    const parsed = JSON.parse(savedData);
+
+    setResults(parsed.recommendations || []);
+    setPersonality(parsed.personality || {});
+    setScreen("results");
+  }
+}, []);
 
   const handleLogin = async () => {
     try {
