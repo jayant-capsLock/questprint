@@ -1,19 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap');
 
-.nav{
-    
-    display: flex;
-    justify-content: center;
-    gap: 4vw;
-    background-color: #240046;
-    padding: 1rem;
-    text-decoration: none;
-    border-bottom-left-radius: 1vw;
-    border-bottom-right-radius: 1vw;
-    transition: 0.3s;
-    
-}
+
 
 body{
     margin: 0;
@@ -22,17 +10,7 @@ body{
     background-color: #10002b;
 }
 
-.nav-link{
-    color: #ffffff;
-    text-decoration: none;
-    font-size: 1.2rem;
-    font-family:'Rajdhani', sans-serif;
-    transition: 0.3s;
-}
-.nav-link:hover{
-    color: #d3acff;
-    transition: 0.3s;
-}
+
 
 .quizBoxContainer{
     display: flex;
@@ -828,18 +806,7 @@ button:disabled {
     text-shadow:
         0 0 10px #f72585;
 }
-.navButton{
-    
-    background:none;
-    border:none;
-    padding:0;
-    font-family:'Rajdhani', sans-serif;
-}
 
-.navButton:hover{
-    background: none;
-    box-shadow: none;
-}
 
 .profilePage{
     min-height:80vh;
@@ -1055,4 +1022,381 @@ button:disabled {
 
 .recommendationCard:hover {
   transform: translateY(-5px);
+}
+
+/* =====================================
+   NAVBAR
+===================================== */
+
+.nav {
+    width: 100%;
+    height: 75px;
+
+    display: flex;
+    align-items: center;
+
+    padding: 0 3rem;
+
+    background: linear-gradient(
+        180deg,
+        #2a0044,
+        #160022
+    );
+
+    border-bottom: 1px solid rgba(139, 92, 246, 0.4);
+
+    box-sizing: border-box;
+}
+
+.logo {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+
+    color: white;
+
+    cursor: pointer;
+
+    transition: 0.3s ease;
+}
+
+.logo:hover {
+    color: #d3acff;
+}
+
+.navLinks {
+    display: flex;
+    align-items: center;
+    gap: 2.5rem;
+    position: relative;
+    right: 3%;
+
+    margin: 0 auto;
+}
+
+.nav-link {
+    background: transparent;
+    border: none;
+    padding: 10px;
+    
+
+    color: rgba(255,255,255,0.85);
+
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition: all 0.25s ease;
+}
+
+.nav-link:hover {
+    color: rgb(158, 124, 238);
+    transform: translateY(-2px);
+}
+
+.account {
+    display: flex;
+    align-items: center;
+}
+
+.navButton {
+    background: none;
+    border: none;
+    padding: 0;
+}
+
+.navButton:hover {
+    background: none;
+    box-shadow: none;
+}
+
+@media (max-width: 768px) {
+    .nav {
+        padding: 0 1rem;
+    }
+
+    .logo {
+        font-size: 1.5rem;
+    }
+
+    .navLinks {
+        gap: 1rem;
+    }
+
+    .nav-link {
+        font-size: 1rem;
+    }
+}
+
+.discoverPage {
+    padding: 3rem;
+    color: white;
+}
+
+.discoverGrid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(auto-fill, minmax(220px, 1fr));
+
+    gap: 1.5rem;
+
+    margin-top: 2rem;
+}
+
+.discoverCard {
+    background: rgba(255,255,255,0.05);
+
+    border: 1px solid rgba(255,255,255,0.1);
+
+    border-radius: 20px;
+
+    padding: 1.5rem;
+
+    cursor: pointer;
+
+    transition: 0.3s;
+}
+
+.discoverCard:hover {
+    transform: translateY(-5px);
+}
+
+.discoverCard {
+    position: relative;
+
+    height: 320px;
+
+    overflow: hidden;
+
+    border-radius: 20px;
+
+    cursor: pointer;
+
+    transition: .3s ease;
+}
+
+.discoverCard:hover {
+    transform: translateY(-6px);
+}
+
+.discoverImage {
+    width: 100%;
+    height: 100%;
+
+    object-fit: cover;
+}
+
+.discoverOverlay {
+    position: absolute;
+    inset: 0;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+
+    padding: 1rem;
+
+    background: linear-gradient(
+        to top,
+        rgba(0,0,0,.9),
+        rgba(0,0,0,.1)
+    );
+
+    color: white;
+}
+.savedBadge {
+    margin-top: 2rem;
+
+    padding: 1rem 2rem;
+
+    border-radius: 999px;
+
+    background: rgba(34, 197, 94, 0.15);
+
+    border: 1px solid rgba(34, 197, 94, 0.4);
+
+    color: #86efac;
+
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+
+    backdrop-filter: blur(10px);
+}
+
+.featuredHero {
+    height: 500px;
+
+    border-radius: 25px;
+
+    overflow: hidden;
+
+    background-size: cover;
+    background-position: center;
+
+    position: relative;
+
+    margin-bottom: 3rem;
+}
+
+.featuredOverlay {
+    position: absolute;
+    inset: 0;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+
+    padding: 3rem;
+
+    background: linear-gradient(
+        to top,
+        rgba(0,0,0,.95),
+        rgba(0,0,0,.3),
+        transparent
+    );
+
+    color: white;
+}
+
+.featuredBadge {
+    width: fit-content;
+
+    padding: .5rem 1rem;
+
+    border-radius: 999px;
+
+    background: rgba(255,255,255,.15);
+
+    backdrop-filter: blur(10px);
+
+    margin-bottom: 1rem;
+}
+
+.featuredOverlay h1 {
+    margin: 0;
+
+    font-size: 4rem;
+
+    font-family: 'Orbitron', sans-serif;
+}
+
+.featuredOverlay p {
+    font-size: 1.3rem;
+    color: #d3acff;
+}
+
+.featuredBtn {
+    width: fit-content;
+
+    padding: 1rem 1.5rem;
+
+    margin-top: 1rem;
+}
+
+.discoverSection {
+    margin-top: 2rem;
+}
+
+.discoverSection h2 {
+    color: white;
+    margin-bottom: 1rem;
+
+    font-family: 'Orbitron', sans-serif;
+}
+
+.gameRow {
+    display: flex;
+    gap: 1rem;
+
+    overflow-x: auto;
+
+    padding-bottom: 1rem;
+
+    scroll-behavior: smooth;
+}
+
+.gameRow::-webkit-scrollbar {
+    height: 8px;
+}
+
+.gameRow::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,.2);
+    border-radius: 999px;
+}
+
+.gameRow .discoverCard {
+    min-width: 240px;
+    flex-shrink: 0;
+}
+
+.selectedGamePanel {
+    margin-top: 4rem;
+
+    padding: 3rem;
+
+    border-radius: 25px;
+
+    background: rgba(255,255,255,.04);
+
+    backdrop-filter: blur(15px);
+
+    border: 1px solid rgba(255,255,255,.08);
+
+    color: white;
+}
+
+.expandedGamePanel {
+     width: 550px;
+
+    opacity: 0;
+
+    transform: translateX(-20px);
+
+    animation: panelReveal 0.3s ease forwards;
+
+    min-height: 320px;
+
+    flex-shrink: 0;
+
+    padding: 1.5rem;
+
+    border-radius: 20px;
+
+    background: rgba(255, 255, 255, 0.06);
+
+    border: 1px solid rgba(255, 255, 255, 0.1);
+
+    backdrop-filter: blur(12px);
+
+    color: white;
+
+    overflow: hidden;
+
+    
+}
+
+@keyframes panelReveal {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.discoverCard {
+    transition:
+        transform 0.25s ease,
+        box-shadow 0.25s ease;
+}
+
+.discoverCard.selected {
+    transform: translateY(-4px);
 }

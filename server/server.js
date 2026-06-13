@@ -74,13 +74,19 @@ app.post("/save-questprint", auth, async (req, res) => {
 
 app.get("/profile", auth, async (req, res) => {
   try {
+    console.log("REQ USER:", req.user);
+
     const user = await User.findById(req.user.userId);
+
+    console.log("FOUND USER:", user);
 
     res.json({
       success: true,
       user,
     });
   } catch (err) {
+    console.log("PROFILE ERROR:", err);
+
     res.status(500).json({
       success: false,
       message: err.message,

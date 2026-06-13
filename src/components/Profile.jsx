@@ -8,6 +8,9 @@ const Profile = ({ setPage }) => {
       try {
         const token = localStorage.getItem("token");
 
+        console.log("API URL:", import.meta.env.VITE_API_URL);
+console.log("TOKEN:", localStorage.getItem("token"));
+
         const response = await axios.get(
           `${import.meta.env.VITE_API_URL}/profile`,
           {
@@ -16,11 +19,13 @@ const Profile = ({ setPage }) => {
             },
           },
         );
-
+        console.log(response.data);
         setUser(response.data.user);
       } catch (err) {
-        console.log(err);
-      }
+  console.log("PROFILE ERROR:");
+  console.log(err);
+  console.log(err.response);
+}
     };
 
     fetchProfile();
@@ -56,6 +61,7 @@ const Profile = ({ setPage }) => {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("questprint-user");
+    localStorage.clear();
 
     window.location.reload();
   };

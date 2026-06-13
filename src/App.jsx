@@ -4,9 +4,11 @@ import Nav from "./components/Nav.jsx";
 import QuizBox from "./components/QuizBox.jsx";
 import GameInfoSection from "./components/GameInfoSection";
 import Profile from "./components/Profile";
+import Discover from "./components/Discover";
 
 const App = () => {
   const token = localStorage.getItem("token");
+  
 
   const [page, setPage] = useState(token ? "profile" : "home");
   const [results, setResults] = useState([]);
@@ -37,7 +39,11 @@ const App = () => {
           <GameInfoSection results={results} />
         </div>
       )}
+      {page === "discover" && (
+        <Discover results={results}/>
+      )}
       {page === "profile" && <Profile setPage={setPage} />}
+      
     </>
   );
 };

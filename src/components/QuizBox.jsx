@@ -105,25 +105,37 @@ const QuizBox = ({ results, setResults, screen, setScreen }) => {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [personality, setPersonality] = useState({});
+  const [questprintSaved, setQuestprintSaved] = useState(false);
 
- useEffect(() => {
-  const savedData = localStorage.getItem("questprint-data");
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("questprint-user"));
 
-  if (savedData) {
-    const parsed = JSON.parse(savedData);
+    if (user?.questPrint) {
+      setQuestprintSaved(true);
+    }
+  }, []);
 
-    setResults(parsed.recommendations || []);
-    setPersonality(parsed.personality || {});
-    setScreen("results");
-  }
-}, []);
+  useEffect(() => {
+    const savedData = localStorage.getItem("questprint-data");
+
+    if (savedData) {
+      const parsed = JSON.parse(savedData);
+
+      setResults(parsed.recommendations || []);
+      setPersonality(parsed.personality || {});
+      setScreen("results");
+    }
+  }, []);
 
   const handleLogin = async () => {
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/login`, {
-        email: loginEmail,
-        password: loginPassword,
-      });
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/login`,
+        {
+          email: loginEmail,
+          password: loginPassword,
+        },
+      );
 
       localStorage.setItem("token", response.data.token);
 
@@ -185,6 +197,14 @@ const QuizBox = ({ results, setResults, screen, setScreen }) => {
       setIsTransitioning(false);
     }, 500);
   };
+
+  useEffect(() => {
+  const saved = localStorage.getItem("questprintSaved");
+
+  if (saved === "true") {
+    setQuestprintSaved(true);
+  }
+}, []);
 
   useEffect(() => {
     const currentId = personalityQuestions[currentQuestion].id;
@@ -319,6 +339,9 @@ const QuizBox = ({ results, setResults, screen, setScreen }) => {
 
       alert("Questprint saved successfully!");
 
+      localStorage.setItem("questprintSaved", "true");
+      setQuestprintSaved(true);
+
       // Redirect to success screen
       setScreen("accountCreated");
     } catch (err) {
@@ -430,23 +453,27 @@ const QuizBox = ({ results, setResults, screen, setScreen }) => {
               </div>
             ))}
           </div>
-          <button
-            className="saveQuestprintBtn"
-            onClick={() => {
-              const token = localStorage.getItem("token");
+          {questprintSaved ? (
+            <div className="savedBadge">✓ QuestPrint Saved</div>
+          ) : (
+            <button
+              className="saveQuestprintBtn"
+              onClick={() => {
+                const token = localStorage.getItem("token");
 
-              if (token) {
-                handleSaveQuestprint();
-              } else {
-                setScreen("signup");
-              }
-            }}
-          >
-            <div>
-              <h2>Save</h2>
-              <p>Your Questprint</p>
-            </div>
-          </button>
+                if (token) {
+                  handleSaveQuestprint();
+                } else {
+                  setScreen("signup");
+                }
+              }}
+            >
+              <div>
+                <h2>Save</h2>
+                <p>Your Questprint</p>
+              </div>
+            </button>
+          )}
         </div>
       )}
       {screen === "signup" && (
