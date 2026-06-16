@@ -8,7 +8,6 @@ import Discover from "./components/Discover";
 
 const App = () => {
   const token = localStorage.getItem("token");
-  
 
   const [page, setPage] = useState(token ? "profile" : "home");
   const [results, setResults] = useState([]);
@@ -16,6 +15,9 @@ const App = () => {
   const [user, setUser] = useState(
     JSON.parse(localStorage.getItem("questprint-user")),
   );
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [discoveryScreen, setDiscoveryScreen] = useState("default");
 
   return (
     <>
@@ -40,10 +42,30 @@ const App = () => {
         </div>
       )}
       {page === "discover" && (
-        <Discover results={results}/>
+        <div>
+          <Nav
+            setScreen={setScreen}
+            screen={screen}
+            setPage={setPage}
+            user={user}
+            page={page}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            searchResults={searchResults}
+            setSearchResults={setSearchResults}
+            discoveryScreen={discoveryScreen}
+            setDiscoveryScreen={setDiscoveryScreen}
+          />
+          <Discover
+            results={results}
+            setPage={setPage}
+            searchTerm={searchTerm}
+            searchResults={searchResults}
+            discoveryScreen={discoveryScreen}
+          />
+        </div>
       )}
       {page === "profile" && <Profile setPage={setPage} />}
-      
     </>
   );
 };

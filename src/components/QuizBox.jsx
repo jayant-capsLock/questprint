@@ -110,19 +110,25 @@ const QuizBox = ({ results, setResults, screen, setScreen }) => {
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("questprint-user"));
 
-    if (user?.questPrint) {
+    if (user?.quizCompleted) {
       setQuestprintSaved(true);
     }
   }, []);
 
   useEffect(() => {
-    const savedData = localStorage.getItem("questprint-data");
+    const user = JSON.parse(localStorage.getItem("questprint-user"));
 
-    if (savedData) {
-      const parsed = JSON.parse(savedData);
+    if (user?.quizCompleted) {
+      const recommendations = games
+        .map((game) => ({
+          ...game,
+          match: calculateMatch(user.personality, game),
+        }))
+        .sort((a, b) => b.match - a.match);
 
-      setResults(parsed.recommendations || []);
-      setPersonality(parsed.personality || {});
+      setResults(recommendations);
+      setPersonality(user.personality || {});
+      setQuestprintSaved(true);
       setScreen("results");
     }
   }, []);
@@ -199,12 +205,12 @@ const QuizBox = ({ results, setResults, screen, setScreen }) => {
   };
 
   useEffect(() => {
-  const saved = localStorage.getItem("questprintSaved");
+    const saved = localStorage.getItem("questprintSaved");
 
-  if (saved === "true") {
-    setQuestprintSaved(true);
-  }
-}, []);
+    if (saved === "true") {
+      setQuestprintSaved(true);
+    }
+  }, []);
 
   useEffect(() => {
     const currentId = personalityQuestions[currentQuestion].id;

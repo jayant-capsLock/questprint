@@ -1092,8 +1092,14 @@ button:disabled {
 }
 
 .nav-link:hover {
-    color: rgb(158, 124, 238);
-    transform: translateY(-2px);
+     color: white;
+
+  background: rgba(255,255,255,0.08);
+
+  border-radius: 10px;
+
+  box-shadow:
+    0 0 12px rgba(255,255,255,0.08);
 }
 
 .account {
@@ -1160,9 +1166,7 @@ button:disabled {
     transition: 0.3s;
 }
 
-.discoverCard:hover {
-    transform: translateY(-5px);
-}
+
 
 .discoverCard {
     position: relative;
@@ -1178,9 +1182,7 @@ button:disabled {
     transition: .3s ease;
 }
 
-.discoverCard:hover {
-    transform: translateY(-6px);
-}
+
 
 .discoverImage {
     width: 100%;
@@ -1309,23 +1311,25 @@ button:disabled {
 }
 
 .gameRow {
-    display: flex;
-    gap: 1rem;
+  display: flex;
+  gap: 1rem;
 
-    overflow-x: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
 
-    padding-bottom: 1rem;
+  padding: 30px 10px;
 
-    scroll-behavior: smooth;
+  scroll-behavior: smooth;
 }
 
+
+
 .gameRow::-webkit-scrollbar {
-    height: 8px;
+  height: 4px;
 }
 
 .gameRow::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,.2);
-    border-radius: 999px;
+  background: rgba(255,255,255,.08);
 }
 
 .gameRow .discoverCard {
@@ -1391,12 +1395,235 @@ button:disabled {
     }
 }
 
-.discoverCard {
-    transition:
-        transform 0.25s ease,
-        box-shadow 0.25s ease;
+
+
+
+
+
+.backDiscover {
+  position: absolute;
+  top: 1.5rem;
+  left: 1.5rem;
+
+  padding: 0.7rem 1.4rem;
+
+  background: rgba(20, 10, 40, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+
+  color: white;
+  font-family: inherit;
+  font-weight: 600;
+
+  border-radius: 12px;
+  cursor: pointer;
+
+  backdrop-filter: blur(8px);
+
+  transition: all 0.2s ease;
 }
 
-.discoverCard.selected {
-    transform: translateY(-4px);
+.backDiscover:hover {
+  transform: translateY(-2px);
+
+  background: rgba(255, 105, 200, 0.2);
+
+  border-color: #ff69c8;
+}
+
+.searchContainer {
+  display: flex;
+  align-items: center;
+  margin: auto;
+}
+
+.searchInput {
+  width: 400px;
+  padding: 0.85rem 1.2rem;
+
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+
+  color: white;
+  font-size: 0.95rem;
+
+  border-radius: 12px 0 0 12px;
+
+  outline: none;
+
+  transition: all 0.25s ease;
+}
+
+.searchInput:focus {
+  border-color: rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.08);
+}
+
+.searchInput::placeholder {
+  color: rgba(255,255,255,0.45);
+}
+
+.searchButton {
+  height: 100%;
+  padding: 0.85rem 1.2rem;
+
+  border: 1px solid rgba(255,255,255,0.08);
+  border-left: none;
+
+  background: rgba(255,255,255,0.06);
+
+  color: rgba(255,255,255,0.8);
+
+  border-radius: 0 12px 12px 0;
+
+  cursor: pointer;
+
+  transition: all 0.25s ease;
+}
+
+.searchButton:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+.nav-link {
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+}
+
+.nav-link.active {
+  color: white;
+
+  background: rgba(255,255,255,0.08);
+
+  border-radius: 10px;
+
+  box-shadow:
+    0 0 12px rgba(255,255,255,0.08);
+}
+
+.searchResultsContainer {
+  padding: 2rem;
+}
+
+.searchResultsTitle {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
+}
+
+.searchResultsList {
+  padding: 6rem;
+  padding-left: 16rem;
+  padding-right: 16rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.searchCard {
+  display: flex;
+
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+
+  border-radius: 16px;
+  overflow: hidden;
+
+  height: 280px;
+
+  margin: 2rem 4rem;
+
+  backdrop-filter: blur(10px);
+
+  transition: 0.25s ease;
+}
+
+.searchCard:hover {
+  transform: translateY(-6px);
+  border-color: rgba(255,255,255,0.2);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+}
+
+.searchCard img {
+  width: 350px;
+  height: 100%;
+
+  object-fit: cover;
+
+  flex-shrink: 0;
+}
+.searchCardContent {
+  flex: 1;
+
+  display: flex;
+  flex-direction: column;
+
+  padding: 2rem;
+
+  color: white;
+}
+
+.searchDescription {
+  margin-top: 1rem;
+  
+  margin-bottom: 1rem;
+
+  color: rgba(255,255,255,0.75);
+
+  line-height: 1.7;
+
+  font-family: 'Rajdhani', sans-serif;
+
+  font-size: 1.05rem;
+
+ 
+}
+
+.searchCard h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: white;
+}
+
+.searchMeta {
+  margin-top: 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  color: rgba(255,255,255,0.7);
+  font-size: 0.9rem;
+}
+
+.discoverCard {
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+    position: relative;
+  z-index: 1;
+}
+
+
+
+.discoverSection {
+  overflow: visible;
+}
+
+.gameRowWrapper {
+  overflow: visible;
+  padding: 25px 0;
+}
+
+
+.discoverCard {
+  position: relative;
+  z-index: 1;
+}
+
+.discoverCard:hover {
+  z-index: 999;
+}
+
+.gameRow {
+  overflow-x: auto;
 }
