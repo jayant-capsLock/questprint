@@ -74,6 +74,12 @@ const Nav = ({
             >
               Profile
             </button>
+            <button
+              className={page === "social" ? "nav-link active" : "nav-link"}
+              onClick={() => setPage("social")}
+            >
+              Social
+            </button>
           </>
         )}
       </div>

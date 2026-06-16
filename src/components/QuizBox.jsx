@@ -106,6 +106,7 @@ const QuizBox = ({ results, setResults, screen, setScreen }) => {
   const [loginPassword, setLoginPassword] = useState("");
   const [personality, setPersonality] = useState({});
   const [questprintSaved, setQuestprintSaved] = useState(false);
+  
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("questprint-user"));
@@ -265,8 +266,8 @@ const QuizBox = ({ results, setResults, screen, setScreen }) => {
   };
 
   const saveCurrentAnswer = () => {
-    console.log("saveCurrentAnswer");
-    console.log("currentQuestion:", currentQuestion);
+    
+    
     const current = personalityQuestions[currentQuestion];
 
     setAnswers((prev) => ({ ...prev, [current.id]: sliderValue }));
@@ -328,7 +329,7 @@ const QuizBox = ({ results, setResults, screen, setScreen }) => {
 
       const questprint = JSON.parse(questprintData);
 
-      console.log("Saving questprint:", questprint);
+      
 
       const response = await axios.post(
         `${import.meta.env.VITE_API_URL}/save-questprint`,
@@ -341,7 +342,7 @@ const QuizBox = ({ results, setResults, screen, setScreen }) => {
         },
       );
 
-      console.log("Save response:", response.data);
+      
 
       alert("Questprint saved successfully!");
 

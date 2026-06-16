@@ -5,6 +5,7 @@ import QuizBox from "./components/QuizBox.jsx";
 import GameInfoSection from "./components/GameInfoSection";
 import Profile from "./components/Profile";
 import Discover from "./components/Discover";
+import Social from "./components/Social";
 
 const App = () => {
   const token = localStorage.getItem("token");
@@ -66,6 +67,7 @@ const App = () => {
         </div>
       )}
       {page === "profile" && <Profile setPage={setPage} />}
+      {page === "social" && <Social setPage={setPage}/>}
     </>
   );
 };

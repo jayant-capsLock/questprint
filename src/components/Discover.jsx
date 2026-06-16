@@ -246,7 +246,7 @@ const GameRow = ({
   };
 
   const handleGameClick = async (game) => {
-    console.log(window.scrollY);
+    
     setSelectedGame(game);
 
     if (!gameDetails[game.name]) {
@@ -309,8 +309,8 @@ const GameRow = ({
   return (
     <section className="discoverSection">
       <h2>{title}</h2>
-      <div className="gameRowWrapper">
-        <div className="gameRow" ref={rowRef}>
+      <div className="gameRowWrapper ">
+        <div className="gameRow " ref={rowRef} data-lenis-prevent>
           {games.map((game) => {
             return (
               <React.Fragment key={game.name}>

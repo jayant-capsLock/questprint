@@ -10,13 +10,13 @@ const auth = (req, res, next) => {
         message: "No token provided",
       });
     }
-    console.log("TOKEN:", token);
+    
 
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET
     );
-    console.log("DECODED:", decoded);
+    
     
     req.user = decoded;
 

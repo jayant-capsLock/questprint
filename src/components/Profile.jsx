@@ -8,8 +8,8 @@ const Profile = ({ setPage }) => {
       try {
         const token = localStorage.getItem("token");
 
-        console.log("API URL:", import.meta.env.VITE_API_URL);
-        console.log("TOKEN:", localStorage.getItem("token"));
+        
+        
 
         const response = await axios.get(
           `${import.meta.env.VITE_API_URL}/profile`,
@@ -19,7 +19,7 @@ const Profile = ({ setPage }) => {
             },
           },
         );
-        console.log(response.data);
+       
         setUser(response.data.user);
         localStorage.setItem(
           "questprint-user",

@@ -35,6 +35,12 @@ const userSchema = new mongoose.Schema({
     match: Number,
   },
 ],
+  friends: [
+  {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+  },
+],
 });
 
 module.exports = mongoose.model("User", userSchema);
