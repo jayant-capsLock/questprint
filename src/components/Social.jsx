@@ -557,10 +557,13 @@ export default function Social({ setPage }) {
   };
 
   useEffect(() => {
+    socketRef.current.off("new-message");
+
     socketRef.current.on("new-message", (message) => {
       if (selectedFriend?._id !== message.sender) {
         messageSoundRef.current?.play();
       }
+
       setMessages((prev) => [
         ...prev,
         {
@@ -574,7 +577,7 @@ export default function Social({ setPage }) {
     return () => {
       socketRef.current.off("new-message");
     };
-  }, []);
+  }, [selectedFriend]);
 
   useEffect(() => {
     const fetchRecommendations = async () => {
