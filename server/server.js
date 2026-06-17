@@ -166,15 +166,21 @@ io.on("connection", (socket) => {
   });
 
   socket.on("voice-offer", ({ targetUserId, offer, callerId }) => {
-    const receiverSocket = onlineUsers[targetUserId];
+  console.log("VOICE OFFER ARRIVED");
+  console.log("caller:", callerId);
+  console.log("target:", targetUserId);
 
-    if (receiverSocket) {
-      io.to(receiverSocket).emit("incoming-voice-offer", {
-        offer,
-        callerId,
-      });
-    }
-  });
+  const receiverSocket = onlineUsers[targetUserId];
+
+  if (receiverSocket) {
+    io.to(receiverSocket).emit("incoming-voice-offer", {
+      offer,
+      callerId,
+    });
+  }
+});
+
+  
 
   socket.on("cancel-call", ({ targetUserId }) => {
   const receiverSocket = onlineUsers[targetUserId];
