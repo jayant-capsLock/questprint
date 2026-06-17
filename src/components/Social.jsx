@@ -64,7 +64,13 @@ export default function Social({ setPage }) {
       });
 
       localStreamRef.current = stream;
-      peerRef.current = new RTCPeerConnection();
+      peerRef.current = new RTCPeerConnection({
+        iceServers: [
+          {
+            urls: "stun:stun.l.google.com:19302",
+          },
+        ],
+      });
 
       peerRef.current.onicecandidate = (event) => {
         if (event.candidate) {
@@ -335,7 +341,13 @@ export default function Social({ setPage }) {
 
     localStreamRef.current = stream;
 
-    peerRef.current = new RTCPeerConnection();
+    peerRef.current = new RTCPeerConnection({
+      iceServers: [
+        {
+          urls: "stun:stun.l.google.com:19302",
+        },
+      ],
+    });
 
     peerRef.current.onicecandidate = (event) => {
       if (event.candidate) {
