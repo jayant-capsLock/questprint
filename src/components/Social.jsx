@@ -59,6 +59,7 @@ export default function Social({ setPage }) {
 
   const startVoiceCall = async () => {
     try {
+      console.log("START CALL CLICKED");
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
       });
@@ -101,9 +102,11 @@ export default function Social({ setPage }) {
 
       console.log(peerRef.current.getSenders());
 
+      console.log("CREATING OFFER");
       const offer = await peerRef.current.createOffer();
 
       await peerRef.current.setLocalDescription(offer);
+      console.log("LOCAL DESCRIPTION SET");
       remoteUserRef.current = selectedFriend._id;
       socketRef.current.emit("voice-offer", {
         callerId: currentUser._id,
