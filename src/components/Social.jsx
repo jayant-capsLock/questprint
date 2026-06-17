@@ -110,6 +110,8 @@ export default function Social({ setPage }) {
         targetUserId: selectedFriend._id,
         offer,
       });
+      console.log("VOICE OFFER SENT");
+      console.log("TARGET:", selectedFriend._id);
 
       console.log(offer);
     } catch (err) {
@@ -273,6 +275,8 @@ export default function Social({ setPage }) {
     socketRef.current.on(
       "incoming-voice-offer",
       async ({ offer, callerId }) => {
+
+        console.log("INCOMING CALL RECEIVED");
         remoteUserRef.current = callerId;
 
         setIncomingCall({
