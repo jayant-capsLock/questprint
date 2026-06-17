@@ -560,18 +560,25 @@ export default function Social({ setPage }) {
     socketRef.current.off("new-message");
 
     socketRef.current.on("new-message", (message) => {
-      if (selectedFriend?._id !== message.sender) {
+      const isCurrentChat =
+        selectedFriend &&
+        (selectedFriend._id === message.sender ||
+          selectedFriend._id === message.receiver);
+
+      if (!isCurrentChat) {
         messageSoundRef.current?.play();
       }
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          ...message,
-          _id: Date.now().toString(),
-          createdAt: new Date(),
-        },
-      ]);
+      if (isCurrentChat) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            ...message,
+            _id: Date.now().toString(),
+            createdAt: new Date(),
+          },
+        ]);
+      }
     });
 
     return () => {

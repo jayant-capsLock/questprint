@@ -160,35 +160,34 @@ io.on("connection", (socket) => {
     if (receiverSocket) {
       io.to(receiverSocket).emit("new-message", {
         sender: data.senderId,
+        receiver: data.receiverId,
         content: data.content,
       });
     }
   });
 
   socket.on("voice-offer", ({ targetUserId, offer, callerId }) => {
-  console.log("VOICE OFFER ARRIVED");
-  console.log("caller:", callerId);
-  console.log("target:", targetUserId);
+    console.log("VOICE OFFER ARRIVED");
+    console.log("caller:", callerId);
+    console.log("target:", targetUserId);
 
-  const receiverSocket = onlineUsers[targetUserId];
+    const receiverSocket = onlineUsers[targetUserId];
 
-  if (receiverSocket) {
-    io.to(receiverSocket).emit("incoming-voice-offer", {
-      offer,
-      callerId,
-    });
-  }
-});
-
-  
+    if (receiverSocket) {
+      io.to(receiverSocket).emit("incoming-voice-offer", {
+        offer,
+        callerId,
+      });
+    }
+  });
 
   socket.on("cancel-call", ({ targetUserId }) => {
-  const receiverSocket = onlineUsers[targetUserId];
+    const receiverSocket = onlineUsers[targetUserId];
 
-  if (receiverSocket) {
-    io.to(receiverSocket).emit("call-cancelled");
-  }
-});
+    if (receiverSocket) {
+      io.to(receiverSocket).emit("call-cancelled");
+    }
+  });
 
   socket.on("end-call", ({ targetUserId }) => {
     const receiverSocket = onlineUsers[targetUserId];
