@@ -15,6 +15,7 @@ export default function Social({ setPage }) {
   const socketRef = useRef(null);
   const currentUser = JSON.parse(localStorage.getItem("questprint-user"));
   const ringtoneRef = useRef(null);
+  const messageSoundRef = useRef(null);
 
   const [onlineUsers, setOnlineUsers] = useState([]);
 
@@ -156,6 +157,10 @@ export default function Social({ setPage }) {
   }, []);
 
   useEffect(() => {
+    messageSoundRef.current = new Audio("/notification.mp3");
+  }, []);
+
+  useEffect(() => {
     const socket = socketRef.current;
     if (!socket) return;
 
@@ -278,7 +283,6 @@ export default function Social({ setPage }) {
     socketRef.current.on(
       "incoming-voice-offer",
       async ({ offer, callerId }) => {
-
         console.log("INCOMING CALL RECEIVED");
         remoteUserRef.current = callerId;
 
@@ -554,6 +558,9 @@ export default function Social({ setPage }) {
 
   useEffect(() => {
     socketRef.current.on("new-message", (message) => {
+      if (selectedFriend?._id !== message.sender) {
+        messageSoundRef.current?.play();
+      }
       setMessages((prev) => [
         ...prev,
         {
