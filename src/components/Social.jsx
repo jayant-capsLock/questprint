@@ -32,7 +32,7 @@ export default function Social({ setPage }) {
 
   const endCall = () => {
     clearTimeout(callTimeoutRef.current);
-    socketRef.current.emit("cancel-call", {
+    socketRef.current.emit("end-call", {
       targetUserId: remoteUserRef.current,
     });
 
@@ -87,9 +87,14 @@ export default function Social({ setPage }) {
       peerRef.current.ontrack = (event) => {
         console.log("Remote stream received");
 
-        const audio = new Audio();
+        const audio = document.createElement("audio");
+
         audio.srcObject = event.streams[0];
-        audio.play();
+        audio.autoplay = true;
+
+        document.body.appendChild(audio);
+
+        audio.play().catch(console.error);
       };
       console.log(peerRef.current);
 
@@ -380,6 +385,8 @@ export default function Social({ setPage }) {
       audio.autoplay = true;
 
       document.body.appendChild(audio);
+
+      audio.play().catch(console.error);
     };
 
     stream.getTracks().forEach((track) => {
