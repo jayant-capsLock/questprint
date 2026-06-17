@@ -14,12 +14,102 @@ export default function Social({ setPage }) {
   const [profileUser, setProfileUser] = useState(null);
   const socketRef = useRef(null);
   const currentUser = JSON.parse(localStorage.getItem("questprint-user"));
+  const ringtoneRef = useRef(null);
 
   const [onlineUsers, setOnlineUsers] = useState([]);
 
   const currentUserId = currentUser?._id;
 
   const [showMenu, setShowMenu] = useState(null);
+  const localStreamRef = useRef(null);
+  const peerRef = useRef(null);
+  const remoteUserRef = useRef(null);
+  const [inCall, setInCall] = useState(false);
+  const [incomingCall, setIncomingCall] = useState(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const callTimeoutRef = useRef(null);
+
+  const endCall = () => {
+    clearTimeout(callTimeoutRef.current);
+    socketRef.current.emit("cancel-call", {
+      targetUserId: remoteUserRef.current,
+    });
+
+    peerRef.current?.close();
+
+    localStreamRef.current?.getTracks().forEach((track) => {
+      track.stop();
+    });
+
+    peerRef.current = null;
+    localStreamRef.current = null;
+
+    setInCall(false);
+  };
+
+  const toggleMute = () => {
+    if (!localStreamRef.current) return;
+
+    const audioTrack = localStreamRef.current.getAudioTracks()[0];
+
+    audioTrack.enabled = !audioTrack.enabled;
+
+    setIsMuted(!audioTrack.enabled);
+  };
+
+  const startVoiceCall = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
+
+      localStreamRef.current = stream;
+      peerRef.current = new RTCPeerConnection();
+
+      peerRef.current.onicecandidate = (event) => {
+        if (event.candidate) {
+          console.log("Sending ICE");
+          socketRef.current.emit("ice-candidate", {
+            targetUserId: remoteUserRef.current,
+            candidate: event.candidate,
+          });
+        }
+      };
+
+      peerRef.current.ontrack = (event) => {
+        console.log("Remote stream received");
+
+        const audio = new Audio();
+        audio.srcObject = event.streams[0];
+        audio.play();
+      };
+      console.log(peerRef.current);
+
+      console.log(stream);
+
+      setInCall(true);
+
+      stream.getTracks().forEach((track) => {
+        peerRef.current.addTrack(track, stream);
+      });
+
+      console.log(peerRef.current.getSenders());
+
+      const offer = await peerRef.current.createOffer();
+
+      await peerRef.current.setLocalDescription(offer);
+      remoteUserRef.current = selectedFriend._id;
+      socketRef.current.emit("voice-offer", {
+        callerId: currentUser._id,
+        targetUserId: selectedFriend._id,
+        offer,
+      });
+
+      console.log(offer);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const viewProfile = async (userId) => {
     try {
@@ -49,19 +139,100 @@ export default function Social({ setPage }) {
   }, []);
 
   useEffect(() => {
-    socketRef.current.on("online-users", (users) => {
-      setOnlineUsers(users);
+    ringtoneRef.current = new Audio("/ringtone.mp3");
+
+    ringtoneRef.current.loop = true;
+  }, []);
+
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    socket.on("incoming-ice-candidate", async ({ candidate }) => {
+      console.log("Received ICE");
+
+      if (!peerRef.current) {
+        console.log("Peer not ready yet");
+        return;
+      }
+
+      try {
+        await peerRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+
+        console.log("ICE added");
+      } catch (err) {
+        console.error(err);
+      }
     });
 
     return () => {
-      socketRef.current.off("online-users");
+      socket.off("incoming-ice-candidate");
     };
   }, []);
 
   useEffect(() => {
-    socketRef.current.emit("user-online", currentUser._id);
+    socketRef.current.on("incoming-voice-answer", async ({ answer }) => {
+      try {
+        console.log("Answer received");
+
+        if (peerRef.current.signalingState !== "have-local-offer") {
+          console.log("Skipping wrong state");
+          return;
+        }
+
+        await peerRef.current.setRemoteDescription(
+          new RTCSessionDescription(answer),
+        );
+
+        console.log("CALL CONNECTED 🎉");
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    return () => {
+      socketRef.current.off("incoming-voice-answer");
+    };
   }, []);
 
+  useEffect(() => {
+    socketRef.current.on("call-cancelled", () => {
+      clearTimeout(callTimeoutRef.current);
+
+      ringtoneRef.current?.pause();
+      ringtoneRef.current.currentTime = 0;
+
+      peerRef.current?.close();
+
+      localStreamRef.current?.getTracks().forEach((track) => {
+        track.stop();
+      });
+
+      peerRef.current = null;
+      localStreamRef.current = null;
+
+      setIncomingCall(null);
+      setInCall(false);
+
+      console.log("Caller cancelled");
+    });
+
+    return () => {
+      socketRef.current.off("call-cancelled");
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    socketRef.current.on("connect", () => {
+      socketRef.current.emit("user-online", currentUser._id);
+    });
+
+    return () => {
+      socketRef.current.off("connect");
+    };
+  }, []);
   const removeFriend = async (friendId) => {
     try {
       const token = localStorage.getItem("token");
@@ -80,6 +251,139 @@ export default function Social({ setPage }) {
     } catch (err) {
       console.log(err);
     }
+  };
+
+  useEffect(() => {
+    socketRef.current.on("online-users", (users) => {
+      setOnlineUsers(users);
+    });
+
+    return () => {
+      socketRef.current.off("online-users");
+    };
+  }, []);
+
+  useEffect(() => {
+    socketRef.current.on(
+      "incoming-voice-offer",
+      async ({ offer, callerId }) => {
+        remoteUserRef.current = callerId;
+
+        setIncomingCall({
+          offer,
+          callerId,
+        });
+
+        callTimeoutRef.current = setTimeout(() => {
+          ringtoneRef.current?.pause();
+          ringtoneRef.current.currentTime = 0;
+
+          setIncomingCall(null);
+
+          socketRef.current.emit("cancel-call", {
+            targetUserId: callerId,
+          });
+        }, 180000);
+        ringtoneRef.current?.play();
+      },
+    );
+
+    return () => {
+      socketRef.current.off("incoming-voice-offer");
+    };
+  }, []);
+
+  useEffect(() => {
+    socketRef.current.on("call-ended", () => {
+      peerRef.current?.close();
+
+      localStreamRef.current?.getTracks().forEach((track) => {
+        track.stop();
+      });
+
+      peerRef.current = null;
+      localStreamRef.current = null;
+
+      setInCall(false);
+
+      console.log("Other user ended call");
+    });
+
+    return () => {
+      socketRef.current.off("call-ended");
+    };
+  }, []);
+  const declineCall = () => {
+    clearTimeout(callTimeoutRef.current);
+    ringtoneRef.current?.pause();
+    ringtoneRef.current.currentTime = 0;
+
+    setIncomingCall(null);
+    socketRef.current.emit("cancel-call", {
+      targetUserId: incomingCall.callerId,
+    });
+  };
+  const acceptCall = async () => {
+    clearTimeout(callTimeoutRef.current);
+    ringtoneRef.current?.pause();
+    ringtoneRef.current.currentTime = 0;
+    const { offer, callerId } = incomingCall;
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+    });
+
+    localStreamRef.current = stream;
+
+    peerRef.current = new RTCPeerConnection();
+
+    peerRef.current.onicecandidate = (event) => {
+      if (event.candidate) {
+        console.log("Sending ICE");
+
+        socketRef.current.emit("ice-candidate", {
+          targetUserId: callerId,
+          candidate: event.candidate,
+        });
+      }
+    };
+
+    peerRef.current.ontrack = (event) => {
+      console.log("Remote stream received");
+
+      const audio = document.createElement("audio");
+
+      audio.srcObject = event.streams[0];
+      audio.autoplay = true;
+
+      document.body.appendChild(audio);
+    };
+
+    stream.getTracks().forEach((track) => {
+      peerRef.current.addTrack(track, stream);
+    });
+
+    console.log("Receiver peer created");
+
+    await peerRef.current.setRemoteDescription(
+      new RTCSessionDescription(offer),
+    );
+
+    console.log("Remote description set");
+
+    const answer = await peerRef.current.createAnswer();
+
+    await peerRef.current.setLocalDescription(answer);
+
+    console.log("Answer created");
+
+    socketRef.current.emit("voice-answer", {
+      targetUserId: callerId,
+      answer,
+    });
+
+    setIncomingCall(null);
+    setInCall(true);
   };
 
   useEffect(() => {
@@ -362,6 +666,21 @@ export default function Social({ setPage }) {
                   </span>
                 </div>
               </div>
+              {!inCall ? (
+                <button className="voice-btn" onClick={startVoiceCall}>
+                  🎤 Voice Call
+                </button>
+              ) : (
+                <div className="call-controls">
+                  <button className="voice-btn" onClick={toggleMute}>
+                    {isMuted ? "🔇 Unmute" : "🎤 Mute"}
+                  </button>
+
+                  <button className="voice-btn end-call-btn" onClick={endCall}>
+                    📞 End Call
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="chat-messages">
@@ -467,104 +786,91 @@ export default function Social({ setPage }) {
           ))}
         </div>
       </div>
+      {incomingCall && (
+        <div className="call-popup">
+          <h3>📞 Incoming Call</h3>
+
+          <button onClick={acceptCall}>Accept</button>
+
+          <button onClick={declineCall}>Decline</button>
+        </div>
+      )}
       {profileUser && (
-  <div
-    className="profile-overlay"
-    onClick={() => setProfileUser(null)}
-  >
-    <div
-      className="profile-modal"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <button
-        className="close-profile"
-        onClick={() => setProfileUser(null)}
-      >
-        ✕
-      </button>
-
-      <div className="profile-top">
-        <div className="profile-avatar">
-          {profileUser.username[0]}
-        </div>
-
-        <h2>{profileUser.username}</h2>
-
-        <p>QuestPrint Explorer</p>
-      </div>
-
-      <div className="profile-stats">
-        <div className="profile-stat">
-          <span>Friends</span>
-          <strong>
-            {profileUser.friends?.length || 0}
-          </strong>
-        </div>
-
-        <div className="profile-stat">
-          <span>Games</span>
-          <strong>
-            {profileUser.recommendations?.length || 0}
-          </strong>
-        </div>
-
-        <div className="profile-stat">
-          <span>Status</span>
-          <strong>Active</strong>
-        </div>
-      </div>
-
-      <div className="profile-section">
-        <h3>QuestPrint Personality</h3>
-
-        <div className="personality-grid">
-          {Object.entries(
-            profileUser.personality || {}
-          ).map(([trait, value]) => (
-            <div
-              className="trait-card"
-              key={trait}
+        <div className="profile-overlay" onClick={() => setProfileUser(null)}>
+          <div className="profile-modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="close-profile"
+              onClick={() => setProfileUser(null)}
             >
-              <div className="trait-header">
-                <span>{trait}</span>
+              ✕
+            </button>
 
-                <strong>
-                  {Math.round(value)}%
-                </strong>
+            <div className="profile-top">
+              <div className="profile-avatar">{profileUser.username[0]}</div>
+
+              <h2>{profileUser.username}</h2>
+
+              <p>QuestPrint Explorer</p>
+            </div>
+
+            <div className="profile-stats">
+              <div className="profile-stat">
+                <span>Friends</span>
+                <strong>{profileUser.friends?.length || 0}</strong>
               </div>
 
-              <div className="trait-bar">
-                <div
-                  className="trait-fill"
-                  style={{
-                    width: `${value}%`,
-                  }}
-                />
+              <div className="profile-stat">
+                <span>Games</span>
+                <strong>{profileUser.recommendations?.length || 0}</strong>
+              </div>
+
+              <div className="profile-stat">
+                <span>Status</span>
+                <strong>Active</strong>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
 
-      <div className="profile-section">
-        <h3>Recommended Games</h3>
+            <div className="profile-section">
+              <h3>QuestPrint Personality</h3>
 
-        <div className="profile-games">
-          {profileUser.recommendations?.map(
-            (game, index) => (
-              <div
-                className="profile-game"
-                key={index}
-              >
-                {game.name}
+              <div className="personality-grid">
+                {Object.entries(profileUser.personality || {}).map(
+                  ([trait, value]) => (
+                    <div className="trait-card" key={trait}>
+                      <div className="trait-header">
+                        <span>{trait}</span>
+
+                        <strong>{Math.round(value)}%</strong>
+                      </div>
+
+                      <div className="trait-bar">
+                        <div
+                          className="trait-fill"
+                          style={{
+                            width: `${value}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ),
+                )}
               </div>
-            )
-          )}
+            </div>
+
+            <div className="profile-section">
+              <h3>Recommended Games</h3>
+
+              <div className="profile-games">
+                {profileUser.recommendations?.map((game, index) => (
+                  <div className="profile-game" key={index}>
+                    {game.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  </div>
-)}
+      )}
     </div>
   );
 }

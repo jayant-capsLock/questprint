@@ -165,6 +165,53 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("voice-offer", ({ targetUserId, offer, callerId }) => {
+    const receiverSocket = onlineUsers[targetUserId];
+
+    if (receiverSocket) {
+      io.to(receiverSocket).emit("incoming-voice-offer", {
+        offer,
+        callerId,
+      });
+    }
+  });
+
+  socket.on("cancel-call", ({ targetUserId }) => {
+  const receiverSocket = onlineUsers[targetUserId];
+
+  if (receiverSocket) {
+    io.to(receiverSocket).emit("call-cancelled");
+  }
+});
+
+  socket.on("end-call", ({ targetUserId }) => {
+    const receiverSocket = onlineUsers[targetUserId];
+
+    if (receiverSocket) {
+      io.to(receiverSocket).emit("call-ended");
+    }
+  });
+
+  socket.on("ice-candidate", ({ targetUserId, candidate }) => {
+    const receiverSocket = onlineUsers[targetUserId];
+
+    if (receiverSocket) {
+      io.to(receiverSocket).emit("incoming-ice-candidate", {
+        candidate,
+      });
+    }
+  });
+
+  socket.on("voice-answer", ({ targetUserId, answer }) => {
+    const receiverSocket = onlineUsers[targetUserId];
+
+    if (receiverSocket) {
+      io.to(receiverSocket).emit("incoming-voice-answer", {
+        answer,
+      });
+    }
+  });
+
   socket.on("disconnect", () => {
     for (const userId in onlineUsers) {
       if (onlineUsers[userId] === socket.id) {
