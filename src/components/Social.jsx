@@ -25,10 +25,12 @@ export default function Social({ setPage }) {
   const localStreamRef = useRef(null);
   const peerRef = useRef(null);
   const remoteUserRef = useRef(null);
+  const audioRef = useRef(null);
   const [inCall, setInCall] = useState(false);
   const [incomingCall, setIncomingCall] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const callTimeoutRef = useRef(null);
+  const iceCandidateQueueRef = useRef([]);
 
   const endCall = () => {
     clearTimeout(callTimeoutRef.current);
@@ -42,8 +44,16 @@ export default function Social({ setPage }) {
       track.stop();
     });
 
+    // Clean up audio element
+    if (audioRef.current) {
+      audioRef.current.srcObject = null;
+      audioRef.current.remove();
+      audioRef.current = null;
+    }
+
     peerRef.current = null;
     localStreamRef.current = null;
+    iceCandidateQueueRef.current = [];
 
     setInCall(false);
   };
@@ -87,17 +97,20 @@ export default function Social({ setPage }) {
       peerRef.current.ontrack = (event) => {
         console.log("Remote stream received");
 
-        const audio = document.createElement("audio");
-
-        audio.srcObject = event.streams[0];
-        audio.autoplay = true;
-
-        document.body.appendChild(audio);
-
-        audio.play().catch(console.error);
+        if (audioRef.current) {
+          audioRef.current.srcObject = event.streams[0];
+        } else {
+          const audio = document.createElement("audio");
+          audio.srcObject = event.streams[0];
+          audio.autoplay = true;
+          audio.id = "remote-audio-call";
+          document.body.appendChild(audio);
+          audioRef.current = audio;
+          audio.play().catch(console.error);
+        }
       };
-      console.log(peerRef.current);
 
+      console.log(peerRef.current);
       console.log(stream);
 
       setInCall(true);
@@ -173,7 +186,15 @@ export default function Social({ setPage }) {
       console.log("Received ICE");
 
       if (!peerRef.current) {
-        console.log("Peer not ready yet");
+        console.log("Peer not ready yet, queueing ICE candidate");
+        iceCandidateQueueRef.current.push(candidate);
+        return;
+      }
+
+      // Only add ICE candidate if remote description is set
+      if (!peerRef.current.remoteDescription) {
+        console.log("Remote description not set yet, queueing ICE candidate");
+        iceCandidateQueueRef.current.push(candidate);
         return;
       }
 
@@ -201,11 +222,22 @@ export default function Social({ setPage }) {
           return;
         }
 
-        await peerRef.current.setRemoteDescription(
-          new RTCSessionDescription(answer),
-        );
+        await peerRef.current.setRemoteDescription(answer);
 
         console.log("CALL CONNECTED 🎉");
+
+        // Process queued ICE candidates
+        while (iceCandidateQueueRef.current.length > 0) {
+          const queuedCandidate = iceCandidateQueueRef.current.shift();
+          try {
+            await peerRef.current.addIceCandidate(
+              new RTCIceCandidate(queuedCandidate),
+            );
+            console.log("Queued ICE added");
+          } catch (err) {
+            console.error(err);
+          }
+        }
       } catch (err) {
         console.error(err);
       }
@@ -229,8 +261,16 @@ export default function Social({ setPage }) {
         track.stop();
       });
 
+      // Clean up audio element
+      if (audioRef.current) {
+        audioRef.current.srcObject = null;
+        audioRef.current.remove();
+        audioRef.current = null;
+      }
+
       peerRef.current = null;
       localStreamRef.current = null;
+      iceCandidateQueueRef.current = [];
 
       setIncomingCall(null);
       setInCall(false);
@@ -254,6 +294,7 @@ export default function Social({ setPage }) {
       socketRef.current.off("connect");
     };
   }, []);
+
   const removeFriend = async (friendId) => {
     try {
       const token = localStorage.getItem("token");
@@ -323,8 +364,16 @@ export default function Social({ setPage }) {
         track.stop();
       });
 
+      // Clean up audio element
+      if (audioRef.current) {
+        audioRef.current.srcObject = null;
+        audioRef.current.remove();
+        audioRef.current = null;
+      }
+
       peerRef.current = null;
       localStreamRef.current = null;
+      iceCandidateQueueRef.current = [];
 
       setInCall(false);
 
@@ -335,6 +384,7 @@ export default function Social({ setPage }) {
       socketRef.current.off("call-ended");
     };
   }, []);
+
   const declineCall = () => {
     clearTimeout(callTimeoutRef.current);
     ringtoneRef.current?.pause();
@@ -345,75 +395,94 @@ export default function Social({ setPage }) {
       targetUserId: incomingCall.callerId,
     });
   };
+
   const acceptCall = async () => {
     clearTimeout(callTimeoutRef.current);
     ringtoneRef.current?.pause();
     ringtoneRef.current.currentTime = 0;
     const { offer, callerId } = incomingCall;
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-    });
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
 
-    localStreamRef.current = stream;
+      localStreamRef.current = stream;
 
-    peerRef.current = new RTCPeerConnection({
-      iceServers: [
-        {
-          urls: "stun:stun.l.google.com:19302",
-        },
-      ],
-    });
+      peerRef.current = new RTCPeerConnection({
+        iceServers: [
+          {
+            urls: "stun:stun.l.google.com:19302",
+          },
+        ],
+      });
 
-    peerRef.current.onicecandidate = (event) => {
-      if (event.candidate) {
-        console.log("Sending ICE");
+      peerRef.current.onicecandidate = (event) => {
+        if (event.candidate) {
+          console.log("Sending ICE");
 
-        socketRef.current.emit("ice-candidate", {
-          targetUserId: callerId,
-          candidate: event.candidate,
-        });
+          socketRef.current.emit("ice-candidate", {
+            targetUserId: callerId,
+            candidate: event.candidate,
+          });
+        }
+      };
+
+      peerRef.current.ontrack = (event) => {
+        console.log("Remote stream received");
+
+        if (audioRef.current) {
+          audioRef.current.srcObject = event.streams[0];
+        } else {
+          const audio = document.createElement("audio");
+          audio.srcObject = event.streams[0];
+          audio.autoplay = true;
+          audio.id = "remote-audio-call";
+          document.body.appendChild(audio);
+          audioRef.current = audio;
+          audio.play().catch(console.error);
+        }
+      };
+
+      stream.getTracks().forEach((track) => {
+        peerRef.current.addTrack(track, stream);
+      });
+
+      console.log("Receiver peer created");
+
+      await peerRef.current.setRemoteDescription(offer);
+
+      console.log("Remote description set");
+
+      const answer = await peerRef.current.createAnswer();
+
+      await peerRef.current.setLocalDescription(answer);
+
+      console.log("Answer created");
+
+      socketRef.current.emit("voice-answer", {
+        targetUserId: callerId,
+        answer,
+      });
+
+      setIncomingCall(null);
+      setInCall(true);
+
+      // Process queued ICE candidates
+      while (iceCandidateQueueRef.current.length > 0) {
+        const queuedCandidate = iceCandidateQueueRef.current.shift();
+        try {
+          await peerRef.current.addIceCandidate(
+            new RTCIceCandidate(queuedCandidate),
+          );
+          console.log("Queued ICE added");
+        } catch (err) {
+          console.error(err);
+        }
       }
-    };
-
-    peerRef.current.ontrack = (event) => {
-      console.log("Remote stream received");
-
-      const audio = document.createElement("audio");
-
-      audio.srcObject = event.streams[0];
-      audio.autoplay = true;
-
-      document.body.appendChild(audio);
-
-      audio.play().catch(console.error);
-    };
-
-    stream.getTracks().forEach((track) => {
-      peerRef.current.addTrack(track, stream);
-    });
-
-    console.log("Receiver peer created");
-
-    await peerRef.current.setRemoteDescription(
-      new RTCSessionDescription(offer),
-    );
-
-    console.log("Remote description set");
-
-    const answer = await peerRef.current.createAnswer();
-
-    await peerRef.current.setLocalDescription(answer);
-
-    console.log("Answer created");
-
-    socketRef.current.emit("voice-answer", {
-      targetUserId: callerId,
-      answer,
-    });
-
-    setIncomingCall(null);
-    setInCall(true);
+    } catch (err) {
+      console.error("Error accepting call:", err);
+    }
   };
 
   useEffect(() => {
@@ -514,6 +583,7 @@ export default function Social({ setPage }) {
       console.log(err);
     }
   };
+
   const sendMessage = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -543,6 +613,7 @@ export default function Social({ setPage }) {
       console.log(err);
     }
   };
+
   const rejectRequest = async (requestId) => {
     try {
       const token = localStorage.getItem("token");
