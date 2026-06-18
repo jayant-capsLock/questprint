@@ -21,6 +21,7 @@ export default function Social({ setPage }) {
   const [socialSearchResults, setSocialSearchResults] = useState([]);
   const screenStreamRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const screenShareContainerRef = useRef(null);
 
   const [onlineUsers, setOnlineUsers] = useState([]);
 
@@ -91,6 +92,8 @@ export default function Social({ setPage }) {
     peerRef.current = null;
     localStreamRef.current = null;
     iceCandidateQueueRef.current = [];
+    setIsFullscreen(false);
+    setShowScreenShare(true);
 
     setInCall(false);
   };
@@ -136,20 +139,37 @@ export default function Social({ setPage }) {
     try {
       const selected = qualityMap[shareQuality];
 
+      // Request display media with audio option based on user preference
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           width: selected.width,
           height: selected.height,
         },
-
-        audio: shareAudio,
+        audio: shareAudio ? true : false,
       });
 
       screenStreamRef.current = screenStream;
 
+      // Add screen video track to peer connection
       const screenTrack = screenStream.getVideoTracks()[0];
+      const sender = peerRef.current
+        .getSenders()
+        .find((s) => s.track && s.track.kind === "video");
 
-      peerRef.current.addTrack(screenTrack, screenStream);
+      if (sender) {
+        // Replace existing video track if any
+        await sender.replaceTrack(screenTrack);
+      } else {
+        // Add as new track if no video track exists
+        peerRef.current.addTrack(screenTrack, screenStream);
+      }
+
+      // If shareAudio was requested, the audio from screen share is already in the stream
+      // But we should keep the original voice audio, so don't add screen audio tracks
+      // Remove any audio tracks from screen stream to avoid conflicts
+      screenStream.getAudioTracks().forEach((track) => {
+        track.stop();
+      });
 
       await renegotiate();
 
@@ -157,13 +177,70 @@ export default function Social({ setPage }) {
 
       console.log("Screen track added");
 
-      screenStream.getVideoTracks()[0].onended = () => {
+      screenTrack.onended = () => {
         console.log("Screen sharing stopped");
-
-        screenStreamRef.current = null;
+        // Stop the screen share
+        stopScreenShare();
       };
     } catch (err) {
       console.log(err);
+      // User cancelled screen share dialog
+      if (err.name === "NotAllowedError") {
+        console.log("Screen sharing cancelled by user");
+      }
+    }
+  };
+
+  const stopScreenShare = async () => {
+    try {
+      if (!screenStreamRef.current) return;
+
+      screenStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+      });
+
+      // Replace screen track back with original video track or remove it
+      const sender = peerRef.current
+        .getSenders()
+        .find((s) => s.track && s.track.kind === "video");
+
+      if (sender) {
+        await sender.replaceTrack(null);
+      }
+
+      screenStreamRef.current = null;
+      await renegotiate();
+    } catch (err) {
+      console.log("Error stopping screen share:", err);
+    }
+  };
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!isFullscreen && screenShareContainerRef.current) {
+        if (screenShareContainerRef.current.requestFullscreen) {
+          await screenShareContainerRef.current.requestFullscreen();
+          setIsFullscreen(true);
+        }
+      } else {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+        }
+        setIsFullscreen(false);
+      }
+    } catch (err) {
+      console.error("Fullscreen error:", err);
+    }
+  };
+
+  const exitFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+      setIsFullscreen(false);
+    } catch (err) {
+      console.error("Error exiting fullscreen:", err);
     }
   };
 
@@ -199,9 +276,11 @@ export default function Social({ setPage }) {
         console.log("Track received:", track.kind);
 
         if (track.kind === "audio") {
-          if (audioRef.current) {
-            audioRef.current.srcObject = event.streams[0];
+          if (!audioRef.current) {
+            audioRef.current = new Audio();
           }
+          audioRef.current.srcObject = event.streams[0];
+          audioRef.current.play().catch((e) => console.log("Auto-play error:", e));
         }
 
         if (track.kind === "video") {
@@ -511,6 +590,8 @@ export default function Social({ setPage }) {
       localStreamRef.current = null;
       iceCandidateQueueRef.current = [];
 
+      setIsFullscreen(false);
+      setShowScreenShare(true);
       setInCall(false);
 
       console.log("Other user ended call");
@@ -570,9 +651,11 @@ export default function Social({ setPage }) {
         console.log("Track received:", track.kind);
 
         if (track.kind === "audio") {
-          if (audioRef.current) {
-            audioRef.current.srcObject = event.streams[0];
+          if (!audioRef.current) {
+            audioRef.current = new Audio();
           }
+          audioRef.current.srcObject = event.streams[0];
+          audioRef.current.play().catch((e) => console.log("Auto-play error:", e));
         }
 
         if (track.kind === "video") {
@@ -865,6 +948,20 @@ export default function Social({ setPage }) {
   const displayedPlayers =
     filteredSocialSearch === "" ? players : socialSearchResults;
 
+  // Handle fullscreen change events
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        setIsFullscreen(false);
+      }
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
   return (
     <div className="social-page">
       <div className="players-section">
@@ -1021,6 +1118,7 @@ export default function Social({ setPage }) {
                 className={`screenShareContainer ${
                   isFullscreen ? "fullscreen" : ""
                 }`}
+                ref={screenShareContainerRef}
               >
                 <video
                   autoPlay
@@ -1035,7 +1133,9 @@ export default function Social({ setPage }) {
                   <div className="screen-title">🖥️ Screen Share</div>
 
                   <div className="screen-actions">
-                    <button onClick={() => setIsFullscreen(false)}>🗗</button>
+                    <button onClick={toggleFullscreen}>
+                      {isFullscreen ? "🗗" : "⛶"}
+                    </button>
 
                     <button onClick={() => setShowScreenShare(false)}>✕</button>
                   </div>
