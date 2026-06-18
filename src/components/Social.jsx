@@ -19,6 +19,8 @@ export default function Social({ setPage }) {
   const [socialSearch, setSocialSearch] = useState("");
   const [filteredSocialSearch, setFilteredSocialSearch] = useState("");
   const [socialSearchResults, setSocialSearchResults] = useState([]);
+  const screenStreamRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [onlineUsers, setOnlineUsers] = useState([]);
 
@@ -34,6 +36,32 @@ export default function Social({ setPage }) {
   const [isMuted, setIsMuted] = useState(false);
   const callTimeoutRef = useRef(null);
   const iceCandidateQueueRef = useRef([]);
+  const [remoteScreenStream, setRemoteScreenStream] = useState(null);
+  const [showScreenShare, setShowScreenShare] = useState(true);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const inCallRef = useRef(false);
+
+  const [shareQuality, setShareQuality] = useState("1080p");
+
+  const [shareAudio, setShareAudio] = useState(true);
+
+  const renegotiate = async () => {
+    try {
+      console.log("Renegotiation started");
+
+      const offer = await peerRef.current.createOffer();
+
+      await peerRef.current.setLocalDescription(offer);
+
+      socketRef.current.emit("voice-offer", {
+        callerId: currentUser._id,
+        targetUserId: remoteUserRef.current,
+        offer,
+      });
+    } catch (err) {
+      console.log(err);
+    }
+  };
 
   const endCall = () => {
     clearTimeout(callTimeoutRef.current);
@@ -46,6 +74,12 @@ export default function Social({ setPage }) {
     localStreamRef.current?.getTracks().forEach((track) => {
       track.stop();
     });
+
+    screenStreamRef.current?.getTracks().forEach((track) => {
+      track.stop();
+    });
+
+    screenStreamRef.current = null;
 
     // Clean up audio element
     if (audioRef.current) {
@@ -69,6 +103,68 @@ export default function Social({ setPage }) {
     audioTrack.enabled = !audioTrack.enabled;
 
     setIsMuted(!audioTrack.enabled);
+  };
+
+  const qualityMap = {
+    "4k": {
+      width: 3840,
+      height: 2160,
+    },
+
+    "2k": {
+      width: 2560,
+      height: 1440,
+    },
+
+    "1080p": {
+      width: 1920,
+      height: 1080,
+    },
+
+    "720p": {
+      width: 1280,
+      height: 720,
+    },
+
+    "360p": {
+      width: 640,
+      height: 360,
+    },
+  };
+
+  const startScreenShare = async () => {
+    try {
+      const selected = qualityMap[shareQuality];
+
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          width: selected.width,
+          height: selected.height,
+        },
+
+        audio: shareAudio,
+      });
+
+      screenStreamRef.current = screenStream;
+
+      const screenTrack = screenStream.getVideoTracks()[0];
+
+      peerRef.current.addTrack(screenTrack, screenStream);
+
+      await renegotiate();
+
+      setShowShareModal(false);
+
+      console.log("Screen track added");
+
+      screenStream.getVideoTracks()[0].onended = () => {
+        console.log("Screen sharing stopped");
+
+        screenStreamRef.current = null;
+      };
+    } catch (err) {
+      console.log(err);
+    }
   };
 
   const startVoiceCall = async () => {
@@ -98,18 +194,18 @@ export default function Social({ setPage }) {
       };
 
       peerRef.current.ontrack = (event) => {
-        console.log("Remote stream received");
+        const track = event.track;
 
-        if (audioRef.current) {
-          audioRef.current.srcObject = event.streams[0];
-        } else {
-          const audio = document.createElement("audio");
-          audio.srcObject = event.streams[0];
-          audio.autoplay = true;
-          audio.id = "remote-audio-call";
-          document.body.appendChild(audio);
-          audioRef.current = audio;
-          audio.play().catch(console.error);
+        console.log("Track received:", track.kind);
+
+        if (track.kind === "audio") {
+          if (audioRef.current) {
+            audioRef.current.srcObject = event.streams[0];
+          }
+        }
+
+        if (track.kind === "video") {
+          setRemoteScreenStream(event.streams[0]);
         }
       };
 
@@ -170,6 +266,10 @@ export default function Social({ setPage }) {
       socketRef.current.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    inCallRef.current = inCall;
+  }, [inCall]);
 
   useEffect(() => {
     ringtoneRef.current = new Audio("/ringtone.mp3");
@@ -264,6 +364,12 @@ export default function Social({ setPage }) {
         track.stop();
       });
 
+      screenStreamRef.current?.getTracks().forEach((track) => {
+        track.stop();
+      });
+
+      screenStreamRef.current = null;
+
       // Clean up audio element
       if (audioRef.current) {
         audioRef.current.srcObject = null;
@@ -332,6 +438,27 @@ export default function Social({ setPage }) {
     socketRef.current.on(
       "incoming-voice-offer",
       async ({ offer, callerId }) => {
+        console.log(
+          "Offer received",
+          inCallRef.current,
+          peerRef.current?.connectionState,
+        );
+        if (peerRef.current && peerRef.current.connectionState !== "closed") {
+          console.log("Renegotiation offer received");
+
+          await peerRef.current.setRemoteDescription(offer);
+
+          const answer = await peerRef.current.createAnswer();
+
+          await peerRef.current.setLocalDescription(answer);
+
+          socketRef.current.emit("voice-answer", {
+            targetUserId: callerId,
+            answer,
+          });
+
+          return;
+        }
         console.log("INCOMING CALL RECEIVED");
         remoteUserRef.current = callerId;
 
@@ -366,6 +493,12 @@ export default function Social({ setPage }) {
       localStreamRef.current?.getTracks().forEach((track) => {
         track.stop();
       });
+
+      screenStreamRef.current?.getTracks().forEach((track) => {
+        track.stop();
+      });
+
+      screenStreamRef.current = null;
 
       // Clean up audio element
       if (audioRef.current) {
@@ -432,18 +565,18 @@ export default function Social({ setPage }) {
       };
 
       peerRef.current.ontrack = (event) => {
-        console.log("Remote stream received");
+        const track = event.track;
 
-        if (audioRef.current) {
-          audioRef.current.srcObject = event.streams[0];
-        } else {
-          const audio = document.createElement("audio");
-          audio.srcObject = event.streams[0];
-          audio.autoplay = true;
-          audio.id = "remote-audio-call";
-          document.body.appendChild(audio);
-          audioRef.current = audio;
-          audio.play().catch(console.error);
+        console.log("Track received:", track.kind);
+
+        if (track.kind === "audio") {
+          if (audioRef.current) {
+            audioRef.current.srcObject = event.streams[0];
+          }
+        }
+
+        if (track.kind === "video") {
+          setRemoteScreenStream(event.streams[0]);
         }
       };
 
@@ -857,6 +990,23 @@ export default function Social({ setPage }) {
                       : "🎤 Mute"
                     : "🎤 Voice Call"}
                 </button>
+                {inCall && (
+                  <button
+                    className="share-screen-btn"
+                    onClick={() => setShowShareModal(true)}
+                  >
+                    🖥️ Share
+                  </button>
+                )}
+
+                {remoteScreenStream && !showScreenShare && (
+                  <button
+                    className="watch-stream-btn"
+                    onClick={() => setShowScreenShare(true)}
+                  >
+                    📺 Watch Stream
+                  </button>
+                )}
 
                 <button
                   className={`end-call-btn ${inCall ? "show" : ""}`}
@@ -866,6 +1016,32 @@ export default function Social({ setPage }) {
                 </button>
               </div>
             </div>
+            {remoteScreenStream && showScreenShare && (
+              <div
+                className={`screenShareContainer ${
+                  isFullscreen ? "fullscreen" : ""
+                }`}
+              >
+                <video
+                  autoPlay
+                  playsInline
+                  ref={(video) => {
+                    if (video) {
+                      video.srcObject = remoteScreenStream;
+                    }
+                  }}
+                />
+                <div className="screen-header">
+                  <div className="screen-title">🖥️ Screen Share</div>
+
+                  <div className="screen-actions">
+                    <button onClick={() => setIsFullscreen(false)}>🗗</button>
+
+                    <button onClick={() => setShowScreenShare(false)}>✕</button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="chat-messages">
               {messages.map((msg) => {
@@ -999,6 +1175,40 @@ export default function Social({ setPage }) {
           <button onClick={acceptCall}>Accept</button>
 
           <button onClick={declineCall}>Decline</button>
+        </div>
+      )}
+
+      {showShareModal && (
+        <div className="share-modal-overlay">
+          <div className="share-modal">
+            <h3>Screen Share</h3>
+
+            <label>Quality</label>
+
+            <select
+              value={shareQuality}
+              onChange={(e) => setShareQuality(e.target.value)}
+            >
+              <option value="4k">4K</option>
+              <option value="2k">2K</option>
+              <option value="1080p">1080P</option>
+              <option value="720p">720P</option>
+              <option value="360p">360P</option>
+            </select>
+
+            <label>
+              <input
+                type="checkbox"
+                checked={shareAudio}
+                onChange={(e) => setShareAudio(e.target.checked)}
+              />
+              Stream Audio
+            </label>
+
+            <button onClick={startScreenShare}>Start Sharing</button>
+
+            <button onClick={() => setShowShareModal(false)}>Cancel</button>
+          </div>
         </div>
       )}
       {profileUser && (
