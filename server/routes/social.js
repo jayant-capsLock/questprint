@@ -7,6 +7,21 @@ const User = require("../models/User");
 
 const auth = require("../middleware/auth");
 
+router.get("/search/:query", auth, async (req, res) => {
+  try {
+    const users = await User.find({
+      username: {
+        $regex: req.params.query,
+        $options: "i",
+      },
+    }).limit(20);
+
+    res.json(users);
+  } catch (err) {
+    console.log(err);
+  }
+});
+
 router.get("/recommendations", auth, async (req, res) => {
   try {
     const currentUser = await User.findById(req.user.userId);
@@ -85,8 +100,6 @@ router.get("/requests", auth, async (req, res) => {
   }
 });
 
-
-
 router.post("/accept/:requestId", auth, async (req, res) => {
   try {
     const request = await FriendRequest.findById(req.params.requestId);
@@ -107,6 +120,8 @@ router.post("/accept/:requestId", auth, async (req, res) => {
         friends: request.sender,
       },
     });
+
+    await FriendRequest.findByIdAndDelete(req.params.requestId);
 
     res.json({
       success: true,
@@ -179,23 +194,16 @@ router.post("/remove-friend/:friendId", auth, async (req, res) => {
   }
 });
 
-router.get(
-  "/profile/:userId",
-  auth,
-  async (req, res) => {
-    try {
-      const user =
-        await User.findById(
-          req.params.userId
-        );
+router.get("/profile/:userId", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId);
 
-      res.json(user);
-    } catch (err) {
-      res.status(500).json({
-        message: err.message,
-      });
-    }
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({
+      message: err.message,
+    });
   }
-);
+});
 
 module.exports = router;

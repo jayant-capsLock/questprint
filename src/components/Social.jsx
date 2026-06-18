@@ -16,6 +16,9 @@ export default function Social({ setPage }) {
   const currentUser = JSON.parse(localStorage.getItem("questprint-user"));
   const ringtoneRef = useRef(null);
   const messageSoundRef = useRef(null);
+  const [socialSearch, setSocialSearch] = useState("");
+  const [filteredSocialSearch, setFilteredSocialSearch] = useState("");
+  const [socialSearchResults, setSocialSearchResults] = useState([]);
 
   const [onlineUsers, setOnlineUsers] = useState([]);
 
@@ -697,6 +700,38 @@ export default function Social({ setPage }) {
     fetchRecommendations();
   }, []);
 
+  const filterSearch = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const { data } = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/social/search/${socialSearch}`,
+        {
+          headers: {
+            Authorization: token,
+          },
+        },
+      );
+
+      setSocialSearchResults(data);
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  const filteredPlayers = players.filter((player) =>
+    player.username.toLowerCase().includes(filteredSocialSearch.toLowerCase()),
+  );
+
+  useEffect(() => {
+    if (socialSearch === "") {
+      setFilteredSocialSearch(socialSearch);
+    }
+  }, [socialSearch]);
+
+  const displayedPlayers =
+    filteredSocialSearch === "" ? players : socialSearchResults;
+
   return (
     <div className="social-page">
       <div className="players-section">
@@ -707,13 +742,27 @@ export default function Social({ setPage }) {
                 ←
               </button>
 
-              <input type="text" placeholder="Search players..." />
+              <input
+                type="text"
+                placeholder="Search players..."
+                value={socialSearch}
+                onChange={(e) => {
+                  setSocialSearch(e.target.value);
+                }}
+                onKeyDown={(e) => {
+                  
+                  if (e.key === "Enter") {
+                    setFilteredSocialSearch(socialSearch);
+                    filterSearch();
+                  }
+                }}
+              />
             </div>
 
             <h2>Players Like You</h2>
 
             <div className="players-list">
-              {players.map((player) => (
+              {displayedPlayers.map((player) => (
                 <div className="player-card" key={player._id}>
                   <div className="player-left">
                     <div className="player-avatar">{player.username[0]}</div>
@@ -780,21 +829,25 @@ export default function Social({ setPage }) {
                   </span>
                 </div>
               </div>
-              {!inCall ? (
-                <button className="voice-btn" onClick={startVoiceCall}>
-                  🎤 Voice Call
+              <div className={`call-controls ${inCall ? "active" : ""}`}>
+                <button
+                  className={`voice-btn ${inCall ? "shrink" : ""}`}
+                  onClick={inCall ? toggleMute : startVoiceCall}
+                >
+                  {inCall
+                    ? isMuted
+                      ? "🔇 Unmute"
+                      : "🎤 Mute"
+                    : "🎤 Voice Call"}
                 </button>
-              ) : (
-                <div className="call-controls">
-                  <button className="voice-btn" onClick={toggleMute}>
-                    {isMuted ? "🔇 Unmute" : "🎤 Mute"}
-                  </button>
 
-                  <button className="voice-btn end-call-btn" onClick={endCall}>
-                    📞 End Call
-                  </button>
-                </div>
-              )}
+                <button
+                  className={`end-call-btn ${inCall ? "show" : ""}`}
+                  onClick={endCall}
+                >
+                  📞
+                </button>
+              </div>
             </div>
 
             <div className="chat-messages">
