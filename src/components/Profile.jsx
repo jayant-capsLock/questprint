@@ -1,15 +1,42 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 
-const Profile = ({ setPage }) => {
-  const [user, setUser] = useState(null);
+const Profile = ({ setPage, user, setUser }) => {
+  //const [user, setUser] = useState(null);
+  const handleProfileUpload = async (fileToUpload) => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const formData = new FormData();
+
+      formData.append("image", fileToUpload);
+
+      const response = await axios.put(
+        `${import.meta.env.VITE_API_URL}/profile-picture`,
+        formData,
+        {
+          headers: {
+            Authorization: token,
+          },
+        },
+      );
+
+      const updatedUser = {
+        ...user,
+        profilePicture: response.data.profilePicture,
+      };
+
+      setUser(updatedUser);
+
+      localStorage.setItem("questprint-user", JSON.stringify(updatedUser));
+    } catch (err) {
+      console.log(err);
+    }
+  };
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         const token = localStorage.getItem("token");
-
-        
-        
 
         const response = await axios.get(
           `${import.meta.env.VITE_API_URL}/profile`,
@@ -19,7 +46,7 @@ const Profile = ({ setPage }) => {
             },
           },
         );
-       
+
         setUser(response.data.user);
         localStorage.setItem(
           "questprint-user",
@@ -74,8 +101,35 @@ const Profile = ({ setPage }) => {
     <div className="profilePage">
       <div className="profileCard">
         <div className="profileHeader">
-          <div className="avatarCircle">
-            {user.username?.[0]?.toUpperCase()}
+          <div className="profileBanner"></div>
+          <div className="avatarWrapper">
+            <div className="avatarCircle">
+              {user.profilePicture ? (
+                <img
+                  src={user.profilePicture}
+                  alt="Profile"
+                  className="profileAvatarImage"
+                />
+              ) : (
+                user.username?.[0]?.toUpperCase()
+              )}
+            </div>
+
+            <label className="avatarEditBtn">
+              ✎
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files[0];
+
+                  if (file) {
+                    handleProfileUpload(file);
+                  }
+                }}
+              />
+            </label>
           </div>
 
           <h1>{user.username}</h1>

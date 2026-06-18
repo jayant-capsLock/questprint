@@ -750,7 +750,6 @@ export default function Social({ setPage }) {
                   setSocialSearch(e.target.value);
                 }}
                 onKeyDown={(e) => {
-                  
                   if (e.key === "Enter") {
                     setFilteredSocialSearch(socialSearch);
                     filterSearch();
@@ -765,7 +764,17 @@ export default function Social({ setPage }) {
               {displayedPlayers.map((player) => (
                 <div className="player-card" key={player._id}>
                   <div className="player-left">
-                    <div className="player-avatar">{player.username[0]}</div>
+                    <div className="player-avatar">
+                      {player.profilePicture ? (
+                        <img
+                          src={player.profilePicture}
+                          alt={player.username}
+                          className="social-avatar-img"
+                        />
+                      ) : (
+                        player.username[0]
+                      )}
+                    </div>
 
                     <div className="player-info">
                       <h3>{player.username}</h3>
@@ -817,7 +826,15 @@ export default function Social({ setPage }) {
 
               <div className="chat-user">
                 <div className="player-avatar">
-                  {selectedFriend.username[0]}
+                  {selectedFriend.profilePicture ? (
+                    <img
+                      src={selectedFriend.profilePicture}
+                      alt={selectedFriend.username}
+                      className="social-avatar-img"
+                    />
+                  ) : (
+                    selectedFriend.username[0]
+                  )}
                 </div>
 
                 <div>
@@ -920,7 +937,17 @@ export default function Social({ setPage }) {
                       setShowMenu(null);
                     }}
                   >
-                    <div className="popup-avatar">{friend.username[0]}</div>
+                    <div className="popup-avatar">
+                      {friend.profilePicture ? (
+                        <img
+                          src={friend.profilePicture}
+                          alt={friend.username}
+                          className="social-avatar-img"
+                        />
+                      ) : (
+                        friend.username[0]
+                      )}
+                    </div>
 
                     <span>{friend.username}</span>
                   </div>
@@ -973,7 +1000,17 @@ export default function Social({ setPage }) {
             </button>
 
             <div className="profile-top">
-              <div className="profile-avatar">{profileUser.username[0]}</div>
+              <div className="profile-avatar">
+                {profileUser.profilePicture ? (
+                  <img
+                    src={profileUser.profilePicture}
+                    alt={profileUser.username}
+                    className="profile-avatar-img"
+                  />
+                ) : (
+                  profileUser.username[0]
+                )}
+              </div>
 
               <h2>{profileUser.username}</h2>
 

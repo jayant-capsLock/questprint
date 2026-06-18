@@ -19,6 +19,7 @@ const App = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [discoveryScreen, setDiscoveryScreen] = useState("default");
+  
 
   return (
     <>
@@ -66,7 +67,7 @@ const App = () => {
           />
         </div>
       )}
-      {page === "profile" && <Profile setPage={setPage} />}
+      {page === "profile" && <Profile setPage={setPage} user={user} setUser={setUser}/>}
       {page === "social" && <Social setPage={setPage}/>}
     </>
   );

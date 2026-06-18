@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const User = require("./models/User");
@@ -10,8 +11,8 @@ const chatRoutes = require("./routes/chat");
 const http = require("http");
 const { Server } = require("socket.io");
 const Message = require("./models/Message");
+const upload = require("./middleware/upload");
 
-require("dotenv").config();
 
 const app = express();
 app.use(express.json());
@@ -26,6 +27,28 @@ mongoose
 
 app.get("/", (req, res) => {
   res.send("Backend is running!");
+});
+
+app.put("/profile-picture", auth, upload.single("image"), async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user.userId,
+      {
+        profilePicture: req.file.path,
+      },
+      { new: true },
+    );
+
+    res.json({
+      success: true,
+      profilePicture: user.profilePicture,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
 });
 
 app.post("/register", async (req, res) => {

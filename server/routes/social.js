@@ -34,6 +34,7 @@ router.get("/recommendations", auth, async (req, res) => {
       .map((user) => ({
         _id: user._id,
         username: user.username,
+        profilePicture: user.profilePicture,
         match: calculateMatch(currentUser.personality, user.personality),
       }))
       .sort((a, b) => b.match - a.match)
@@ -90,7 +91,7 @@ router.get("/requests", auth, async (req, res) => {
     const requests = await FriendRequest.find({
       receiver: req.user.userId,
       status: "pending",
-    }).populate("sender", "username");
+    }).populate("sender", "username profilePicture");
 
     res.json(requests);
   } catch (err) {
@@ -155,7 +156,7 @@ router.get("/friends", auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).populate(
       "friends",
-      "username",
+      "username profilePicture",
     );
 
     res.json(user.friends);
