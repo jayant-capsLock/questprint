@@ -1096,7 +1096,7 @@ export default function Social({ setPage }) {
                   </button>
                 )}
 
-                {remoteScreenStream && !showScreenShare && (
+                {inCall && remoteScreenStream && !showScreenShare && (
                   <button
                     className="watch-stream-btn"
                     onClick={() => setShowScreenShare(true)}
