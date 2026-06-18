@@ -853,6 +853,19 @@
 
 .friend-item {
   position: relative;
+  transition: 0.2s;
+}
+
+@keyframes popupIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .friend-popup {
@@ -881,6 +894,10 @@
     0 20px 60px rgba(0,0,0,.45);
 
   z-index: 9999;
+
+  animation: popupIn 0.2s ease-out;
+
+  transform-origin: top right;
 }
 
 .requests-panel {
@@ -1548,4 +1565,37 @@
   height: 100%;
   object-fit: cover;
   border-radius: 50%;
+}
+
+.friend-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.friend-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(255,255,255,0.08);
+
+  overflow: hidden;
+
+  font-weight: 700;
+}
+
+.friend-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.friend-item:hover{
+  cursor: pointer;
+  
 }

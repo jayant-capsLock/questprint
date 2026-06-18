@@ -915,16 +915,28 @@ export default function Social({ setPage }) {
           <h3>Your Friends</h3>
 
           {friends.map((friend) => (
-            <div className="friend-item" key={friend._id}>
-              <span>{friend.username}</span>
+            <div
+              className="friend-item"
+              key={friend._id}
+              onClick={() =>
+                setShowMenu(showMenu === friend._id ? null : friend._id)
+              }
+            >
+              <div className="friend-left">
+                <div className="friend-avatar">
+                  {friend.profilePicture ? (
+                    <img
+                      src={friend.profilePicture}
+                      alt={friend.username}
+                      className="friend-avatar-img"
+                    />
+                  ) : (
+                    friend.username[0]
+                  )}
+                </div>
 
-              <button
-                onClick={() =>
-                  setShowMenu(showMenu === friend._id ? null : friend._id)
-                }
-              >
-                ⋮
-              </button>
+                <span>{friend.username}</span>
+              </div>
 
               {showMenu === friend._id && (
                 <div className="friend-popup">
