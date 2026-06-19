@@ -59,6 +59,17 @@ export default function Social({ setPage }) {
     try {
       console.log("Renegotiation started");
 
+      // Check if peer connection exists and is in a valid state
+      if (!peerRef.current) {
+        console.error("Peer connection not established");
+        return;
+      }
+
+      if (peerRef.current.connectionState === "closed" || peerRef.current.connectionState === "failed") {
+        console.error("Peer connection is in invalid state:", peerRef.current.connectionState);
+        return;
+      }
+
       const offer = await peerRef.current.createOffer();
 
       await peerRef.current.setLocalDescription(offer);
@@ -69,7 +80,7 @@ export default function Social({ setPage }) {
         offer,
       });
     } catch (err) {
-      console.log(err);
+      console.error("Renegotiation error:", err);
     }
   };
 
@@ -152,6 +163,13 @@ export default function Social({ setPage }) {
 
   const startScreenShare = async () => {
     try {
+      // Validate peer connection before starting screen share
+      if (!peerRef.current || peerRef.current.connectionState === "closed") {
+        console.error("Peer connection not established. Cannot share screen.");
+        alert("No active call. Start a voice call first.");
+        return;
+      }
+
       const selected = qualityMap[shareQuality];
 
       // Request display media with audio option based on user preference
@@ -200,7 +218,7 @@ export default function Social({ setPage }) {
         stopScreenShare();
       };
     } catch (err) {
-      console.log(err);
+      console.error("Screen share error:", err);
       // User cancelled screen share dialog
       if (err.name === "NotAllowedError") {
         console.log("Screen sharing cancelled by user");
@@ -215,6 +233,14 @@ export default function Social({ setPage }) {
       screenStreamRef.current.getTracks().forEach((track) => {
         track.stop();
       });
+
+      // Check if peer connection still exists before accessing senders
+      if (!peerRef.current) {
+        console.log("Peer connection closed, skipping track replacement");
+        screenStreamRef.current = null;
+        setIsSharingScreen(false);
+        return;
+      }
 
       const sender = peerRef.current
         .getSenders()
@@ -234,7 +260,7 @@ export default function Social({ setPage }) {
 
       await renegotiate();
     } catch (err) {
-      console.log("Error stopping screen share:", err);
+      console.error("Error stopping screen share:", err);
     }
   };
 
