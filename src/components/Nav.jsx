@@ -36,8 +36,17 @@ const Nav = ({
 
   return (
     <nav className="nav">
-      <div className="logo" onClick={() => setPage("home")}>
-        QuestPrint
+      <div className="logoContainer">
+        <div
+          className="logo"
+          onClick={() => {
+            setPage("home");
+          }}
+        >
+          QUESTPRINT
+        </div>
+
+        <span className="logoTagline">Discover games through personality</span>
       </div>
 
       {page === "discover" && (

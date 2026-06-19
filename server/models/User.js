@@ -45,6 +45,15 @@ const userSchema = new mongoose.Schema({
   type: String,
   default: "",
 },
+  lastSeen: {
+  type: Date,
+  default: Date.now
+},
+  wishlist: [
+  {
+    type: String,
+  },
+],
 });
 
 module.exports = mongoose.model("User", userSchema);

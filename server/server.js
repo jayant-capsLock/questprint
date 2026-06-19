@@ -176,6 +176,16 @@ io.on("connection", (socket) => {
     io.emit("online-users", Object.keys(onlineUsers));
   });
 
+  socket.on("typing", ({ senderId, receiverId }) => {
+    const receiverSocket = onlineUsers[receiverId];
+
+    if (receiverSocket) {
+      io.to(receiverSocket).emit("user-typing", {
+        senderId,
+      });
+    }
+  });
+
   socket.on("send-message", (data) => {
     const receiverSocket = onlineUsers[data.receiverId];
 
@@ -247,9 +257,13 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     for (const userId in onlineUsers) {
       if (onlineUsers[userId] === socket.id) {
+        await User.findByIdAndUpdate(userId, {
+          lastSeen: Date.now(),
+        });
+
         delete onlineUsers[userId];
       }
     }

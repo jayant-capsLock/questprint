@@ -7,6 +7,50 @@ const User = require("../models/User");
 
 const auth = require("../middleware/auth");
 
+router.post("/wishlist/:gameId", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+
+    const { gameId } = req.params;
+
+    if (!user.wishlist.includes(gameId)) {
+      user.wishlist.push(gameId);
+      await user.save();
+    }
+
+    res.json(user.wishlist);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.delete("/wishlist/:gameId", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+
+    user.wishlist = user.wishlist.filter(
+      (id) => id !== req.params.gameId
+    );
+
+    await user.save();
+
+    res.json(user.wishlist);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.get("/wishlist", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    console.log(req.user);
+
+    res.json(user.wishlist);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 router.get("/search/:query", auth, async (req, res) => {
   try {
     const users = await User.find({
@@ -156,7 +200,7 @@ router.get("/friends", auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).populate(
       "friends",
-      "username profilePicture",
+      "username profilePicture lastSeen",
     );
 
     res.json(user.friends);

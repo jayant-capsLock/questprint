@@ -2,6 +2,7 @@ const express = require("express");
 const auth = require("../middleware/auth");
 const Message = require("../models/Message");
 const User = require("../models/User");
+const mongoose = require("mongoose");
 
 const router = express.Router();
 
@@ -28,11 +29,47 @@ router.post("/send/:userId", auth, async (req, res) => {
   }
 });
 
+router.get("/unread/counts", auth, async (req, res) => {
+  try {
+    const counts = await Message.aggregate([
+      {
+        $match: {
+          receiver: new mongoose.Types.ObjectId(req.user.userId),
+          isRead: false,
+        },
+      },
+      {
+        $group: {
+          _id: "$sender",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    res.json(counts);
+  } catch (err) {
+    res.status(500).json({
+      message: err.message,
+    });
+  }
+});
+
 router.get("/:userId", auth, async (req, res) => {
   try {
     const currentUser = req.user.userId;
 
     const otherUser = req.params.userId;
+
+    await Message.updateMany(
+      {
+        sender: otherUser,
+        receiver: currentUser,
+        isRead: false,
+      },
+      {
+        isRead: true,
+      },
+    );
 
     const messages = await Message.find({
       $or: [
@@ -56,7 +93,5 @@ router.get("/:userId", auth, async (req, res) => {
     });
   }
 });
-
-
 
 module.exports = router;

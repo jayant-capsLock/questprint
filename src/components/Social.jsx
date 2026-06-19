@@ -2,6 +2,7 @@ import "./styles/social.css";
 import axios from "axios";
 import { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
+import { formatDistanceToNow } from "date-fns";
 
 export default function Social({ setPage }) {
   const [players, setPlayers] = useState([]);
@@ -22,6 +23,9 @@ export default function Social({ setPage }) {
   const screenStreamRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const screenShareContainerRef = useRef(null);
+  const [typingUser, setTypingUser] = useState(null);
+
+  const [unreadCounts, setUnreadCounts] = useState({});
 
   const [isSharingScreen, setIsSharingScreen] = useState(false);
   const [friendIsSharing, setFriendIsSharing] = useState(false);
@@ -29,6 +33,8 @@ export default function Social({ setPage }) {
   const [onlineUsers, setOnlineUsers] = useState([]);
 
   const currentUserId = currentUser?._id;
+
+  
 
   const [showMenu, setShowMenu] = useState(null);
   const localStreamRef = useRef(null);
@@ -345,6 +351,38 @@ export default function Social({ setPage }) {
     }
   };
 
+
+
+  const fetchUnreadCounts = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const { data } = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/chat/unread/counts`,
+        {
+          headers: {
+            Authorization: token,
+          },
+        },
+      );
+
+      const mapped = {};
+
+      data.forEach((item) => {
+        mapped[item._id] = item.count;
+      });
+      console.log(data);
+      setUnreadCounts(mapped);
+      console.log(data);
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  useEffect(() => {
+    fetchUnreadCounts();
+  }, []);
+
   const viewProfile = async (userId) => {
     try {
       const token = localStorage.getItem("token");
@@ -365,6 +403,26 @@ export default function Social({ setPage }) {
   };
 
   useEffect(() => {
+    const socket = socketRef.current;
+
+    if (!socket) return;
+
+    socket.on("user-typing", ({ senderId }) => {
+      if (selectedFriend?._id === senderId) {
+        setTypingUser(senderId);
+
+        setTimeout(() => {
+          setTypingUser(null);
+        }, 3000);
+      }
+    });
+
+    return () => {
+      socket.off("user-typing");
+    };
+  }, [selectedFriend]);
+
+  useEffect(() => {
     socketRef.current = io(import.meta.env.VITE_API_URL);
 
     return () => {
@@ -381,6 +439,7 @@ export default function Social({ setPage }) {
 
     ringtoneRef.current.loop = true;
   }, []);
+
 
   useEffect(() => {
     messageSoundRef.current = new Audio("/notification.mp3");
@@ -789,6 +848,7 @@ export default function Social({ setPage }) {
       );
 
       setMessages(data);
+      fetchUnreadCounts();
     };
 
     fetchMessages();
@@ -927,6 +987,7 @@ export default function Social({ setPage }) {
 
       if (!isCurrentChat) {
         messageSoundRef.current?.play();
+        fetchUnreadCounts();
       }
 
       if (isCurrentChat) {
@@ -1236,11 +1297,24 @@ export default function Social({ setPage }) {
               <div ref={messagesEndRef} />
             </div>
 
+            {typingUser && (
+              <div className="typing-indicator">
+                {selectedFriend.username} is typing...
+              </div>
+            )}
+
             <div className="chat-input">
               <input
                 placeholder="Message..."
                 value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
+                onChange={(e) => {
+                  setNewMessage(e.target.value);
+
+                  socketRef.current.emit("typing", {
+                    senderId: currentUser._id,
+                    receiverId: selectedFriend._id,
+                  });
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     sendMessage();
@@ -1286,7 +1360,32 @@ export default function Social({ setPage }) {
                   )}
                 </div>
 
-                <span>{friend.username}</span>
+                <div className="friend-info">
+                  <div className="friend-name-row">
+                    <span className="friend-name">{friend.username}</span>
+
+                    {unreadCounts[friend._id] > 0 && (
+                      <div className="unread-badge">
+                        {unreadCounts[friend._id]}
+                      </div>
+                    )}
+                  </div>
+
+                  <span
+                    className={`friend-status ${
+                      onlineUsers.includes(friend._id) ? "online" : "offline"
+                    }`}
+                  >
+                    {onlineUsers.includes(friend._id)
+                      ? "Online"
+                      : friend.lastSeen
+                        ? `Last seen ${formatDistanceToNow(
+                            new Date(friend.lastSeen),
+                            { addSuffix: true },
+                          )}`
+                        : "Offline"}
+                  </span>
+                </div>
               </div>
 
               {showMenu === friend._id && (

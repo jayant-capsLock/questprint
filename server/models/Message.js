@@ -18,13 +18,15 @@ const messageSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+
+    isRead: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
-module.exports = mongoose.model(
-  "Message",
-  messageSchema
-);
+module.exports = mongoose.model("Message", messageSchema);

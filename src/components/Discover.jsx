@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { getGameImage, getGameInfo } from "../data/rawg";
+import axios from "axios";
 
 const Discover = ({ results, setPage, discoveryScreen, searchResults }) => {
   const [gameImages, setGameImages] = useState({});
@@ -15,6 +16,58 @@ const Discover = ({ results, setPage, discoveryScreen, searchResults }) => {
   const [visibleExploration, setVisibleExploration] = useState(10);
   const [visibleNarrative, setVisibleNarrative] = useState(10);
   const [visibleChallenge, setVisibleChallenge] = useState(10);
+  const [wishlist, setWishlist] = useState([]);
+
+  const fetchWishlist = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/social/wishlist/`,
+        {
+          headers: {
+            Authorization: token,
+          },
+        },
+      );
+      setWishlist(response.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const toggleWishlist = async (gameId) => {
+    try {
+      const token = localStorage.getItem("token");
+
+      if (wishlist.includes(gameId)) {
+        const response = await axios.delete(
+          `${import.meta.env.VITE_API_URL}/api/social/wishlist/${gameId}`,
+          {
+            headers: {
+              Authorization: token,
+            },
+          },
+        );
+
+        setWishlist(response.data);
+      } else {
+        const response = await axios.post(
+          `${import.meta.env.VITE_API_URL}/api/social/wishlist/${gameId}`,
+          {},
+          {
+            headers: {
+              Authorization: token,
+            },
+          },
+        );
+
+        setWishlist(response.data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     async function loadHero() {
@@ -33,6 +86,10 @@ const Discover = ({ results, setPage, discoveryScreen, searchResults }) => {
       loadHero();
     }
   }, [featuredGame]);
+
+  useEffect(() => {
+    fetchWishlist();
+  }, []);
 
   const visibleGamesToLoad = [
     ...results.slice(1, visibleRecommended),
@@ -79,6 +136,8 @@ const Discover = ({ results, setPage, discoveryScreen, searchResults }) => {
     return <h1>Loading...</h1>;
   }
 
+  console.log(wishlist);
+
   return (
     <>
       {discoveryScreen === "default" && (
@@ -94,51 +153,86 @@ const Discover = ({ results, setPage, discoveryScreen, searchResults }) => {
             }}
           >
             <div className="featuredOverlay">
-              <span className="featuredBadge">🎯 Best Match</span>
+              <span className="featuredBadge">🎯 BEST MATCH</span>
+
+              <div className="heroMatch">{featuredGame.match}%</div>
+
+              <div className="heroMatchText">MATCH</div>
 
               <h1>{featuredGame.name}</h1>
 
-              <p>{featuredGame.match}% Match</p>
+              <p className="heroDescription">
+                A vast world full of mystery, challenge and discovery.
+              </p>
 
-              <button className="featuredBtn">Learn More</button>
+              <div className="heroActions">
+                <button className="featuredBtn">Learn More</button>
+
+                <button className="wishlistHeroBtn">⭐ Add to Wishlist</button>
+              </div>
+
+              <div className="heroTags">
+                <span>Action RPG</span>
+                <span>Open World</span>
+                <span>Souls-like</span>
+                <span>Fantasy</span>
+              </div>
+              <div className="heroDots">
+                <span className="activeDot"></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
             </div>
           </div>
 
           <section className="discoverSection">
             <GameRow
               title="🔥 Recommended For You"
+              subtitle="Games picked for your unique taste"
               games={results.slice(1, visibleRecommended)}
               loadMore={setVisibleRecommended}
               gameImages={gameImages}
               gameDetails={gameDetails}
               setGameDetails={setGameDetails}
+              wishlist={wishlist}
+              toggleWishlist={toggleWishlist}
             />
 
             <GameRow
               title="🌍 Exploration Games"
+              subtitle="Vast worlds waiting to be discovered"
               games={explorationGames.slice(0, visibleExploration)}
               loadMore={setVisibleExploration}
               gameImages={gameImages}
               gameDetails={gameDetails}
               setGameDetails={setGameDetails}
+              wishlist={wishlist}
+              toggleWishlist={toggleWishlist}
             />
 
             <GameRow
               title="📖 Story Rich"
+              subtitle="Unforgettable stories and characters"
               games={narrativeGames.slice(0, visibleNarrative)}
               loadMore={setVisibleNarrative}
               gameImages={gameImages}
               gameDetails={gameDetails}
               setGameDetails={setGameDetails}
+              wishlist={wishlist}
+              toggleWishlist={toggleWishlist}
             />
 
             <GameRow
               title="⚔️ Challenge Seekers"
+              subtitle="For those who crave the ultimate test"
               games={challengeGames.slice(0, visibleChallenge)}
               loadMore={setVisibleChallenge}
               gameImages={gameImages}
               gameDetails={gameDetails}
               setGameDetails={setGameDetails}
+              wishlist={wishlist}
+              toggleWishlist={toggleWishlist}
             />
           </section>
         </div>
@@ -171,11 +265,14 @@ const Discover = ({ results, setPage, discoveryScreen, searchResults }) => {
 
 const GameRow = ({
   title,
+  subtitle,
   games,
   loadMore,
   gameImages,
   gameDetails,
   setGameDetails,
+  wishlist,
+  toggleWishlist,
 }) => {
   const canMove = useRef(false);
   const timeoutRef = useRef(null);
@@ -196,8 +293,6 @@ const GameRow = ({
     translateY(-10px)
   `;
 
-    
-
     timeoutRef.current = setTimeout(() => {
       canMove.current = true;
       box.style.transition =
@@ -213,7 +308,6 @@ const GameRow = ({
 
     const x = e.clientX - rect.left - rect.width / 2;
     const y = e.clientY - rect.top - rect.height / 2;
-
 
     const rotateX = y / 100;
     const rotateY = -x / 100;
@@ -246,7 +340,6 @@ const GameRow = ({
   };
 
   const handleGameClick = async (game) => {
-    
     setSelectedGame(game);
 
     if (!gameDetails[game.name]) {
@@ -308,7 +401,15 @@ const GameRow = ({
 
   return (
     <section className="discoverSection">
-      <h2>{title}</h2>
+      <div className="sectionHeader">
+        <div>
+          <h2>{title}</h2>
+
+          <p className="sectionSubtitle">{subtitle}</p>
+        </div>
+
+        <button className="viewAllBtn">View All →</button>
+      </div>
       <div className="gameRowWrapper ">
         <div className="gameRow " ref={rowRef} data-lenis-prevent>
           {games.map((game) => {
@@ -323,6 +424,15 @@ const GameRow = ({
                   onMouseMove={handleMouseMove}
                   onMouseLeave={handleMouseLeave}
                 >
+                  <button
+                    className="wishlistBtn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleWishlist(game.name);
+                    }}
+                  >
+                    {wishlist.includes(game.name) ? "⭐" : "☆"}
+                  </button>
                   <img
                     src={gameImages[game.name]}
                     alt={game.name}
@@ -333,8 +443,14 @@ const GameRow = ({
                   />
 
                   <div className="discoverOverlay">
+                    <span className="matchBadgeText">{game.match}% Match</span>
+
                     <h3>{game.name}</h3>
-                    <p>{game.match}% Match</p>
+
+                    <span className="genreText">
+                      {game.genre} •{" "}
+                      {game.exploration >= 70 ? "Open World" : "Adventure"}
+                    </span>
                   </div>
                 </div>
 
