@@ -46,9 +46,13 @@ export default function Social({ setPage }) {
   const [showShareModal, setShowShareModal] = useState(false);
   const inCallRef = useRef(false);
   const remoteDescriptionSetRef = useRef(false);
+  const audioContextRef = useRef(null);
+  const desktopAudioTrackRef = useRef(null);
+  const screenVideoTrackRef = useRef(null);
 
   const [shareQuality, setShareQuality] = useState("1080p");
   const [shareAudio, setShareAudio] = useState(true);
+  const [screenShareAudioError, setScreenShareAudioError] = useState(null);
 
   const qualityMap = {
     "4k": { width: 3840, height: 2160 },
@@ -72,6 +76,65 @@ export default function Social({ setPage }) {
       document.body.appendChild(audioRef.current);
     }
     return audioRef.current;
+  };
+
+  // ============================================================
+  // AUDIO CONTEXT SETUP FOR DESKTOP AUDIO MIXING
+  // ============================================================
+
+  const initializeAudioContext = () => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioContextRef.current;
+  };
+
+  const createAudioMix = async (screenStream, localStream) => {
+    try {
+      console.log("🎵 Creating audio mix for screenshare...");
+
+      const audioContext = initializeAudioContext();
+
+      // Resume audio context if suspended
+      if (audioContext.state === "suspended") {
+        await audioContext.resume();
+        console.log("🔊 AudioContext resumed");
+      }
+
+      // Create destination to send mixed audio to peer connection
+      const destination = audioContext.createMediaStreamDestination();
+
+      // Get desktop audio track from screen stream
+      const desktopAudioTracks = screenStream.getAudioTracks();
+      if (desktopAudioTracks.length > 0) {
+        const desktopAudioSource = audioContext.createMediaStreamSource(screenStream);
+        const desktopGain = audioContext.createGain();
+
+        desktopGain.gain.value = 1.0; // Full desktop audio
+        desktopAudioSource.connect(desktopGain);
+        desktopGain.connect(destination);
+
+        console.log("✅ Desktop audio connected");
+      }
+
+      // Get local microphone audio
+      const localAudioTracks = localStream.getAudioTracks();
+      if (localAudioTracks.length > 0) {
+        const localAudioSource = audioContext.createMediaStreamSource(localStream);
+        const localGain = audioContext.createGain();
+
+        localGain.gain.value = 0.7; // Slightly reduce mic to prevent feedback
+        localAudioSource.connect(localGain);
+        localGain.connect(destination);
+
+        console.log("✅ Microphone audio connected");
+      }
+
+      return destination.stream;
+    } catch (err) {
+      console.error("❌ Error creating audio mix:", err);
+      throw err;
+    }
   };
 
   // ============================================================
@@ -175,7 +238,7 @@ export default function Social({ setPage }) {
           const audio = initializeAudioElement();
           remoteStreamRef.current = event.streams[0];
           audio.srcObject = event.streams[0];
-          
+
           audio.play().catch((e) => {
             console.warn("⚠️ Auto-play failed:", e);
             audio.muted = false;
@@ -283,7 +346,7 @@ export default function Social({ setPage }) {
           const audio = initializeAudioElement();
           remoteStreamRef.current = event.streams[0];
           audio.srcObject = event.streams[0];
-          
+
           audio.play().catch((e) => {
             console.warn("⚠️ Auto-play failed:", e);
             audio.muted = false;
@@ -385,6 +448,9 @@ export default function Social({ setPage }) {
       screenStreamRef.current = null;
     }
 
+    desktopAudioTrackRef.current = null;
+    screenVideoTrackRef.current = null;
+
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.srcObject = null;
@@ -394,6 +460,12 @@ export default function Social({ setPage }) {
       peerRef.current.close();
       peerRef.current = null;
       console.log("🔌 Peer connection closed");
+    }
+
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+      console.log("🔌 AudioContext closed");
     }
 
     iceCandidateQueueRef.current = [];
@@ -409,6 +481,7 @@ export default function Social({ setPage }) {
     setIsSharingScreen(false);
     setFriendIsSharing(false);
     setIsScreenShareTransitioning(false);
+    setScreenShareAudioError(null);
 
     console.log("✅ Call ended and cleaned up");
   };
@@ -426,37 +499,99 @@ export default function Social({ setPage }) {
 
     try {
       setIsScreenShareTransitioning(true);
-      console.log("🖥️ Starting screenshare at", shareQuality, "quality");
+      setScreenShareAudioError(null);
+      console.log("🖥️ Starting screenshare at", shareQuality, "quality with audio:", shareAudio);
 
       const selected = qualityMap[shareQuality];
 
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: selected.width },
-          height: { ideal: selected.height },
-          frameRate: { ideal: 30 },
-        },
-        audio: false,
-      });
+      // Request both video and audio from screen capture
+      let screenStream;
+      try {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            width: { ideal: selected.width },
+            height: { ideal: selected.height },
+            frameRate: { ideal: 30 },
+          },
+          audio: shareAudio ? {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          } : false,
+        });
+      } catch (err) {
+        if (err.name === "NotAllowedError") {
+          console.log("User cancelled screen share");
+        } else {
+          console.error("❌ Screen capture error:", err);
+          alert("Failed to capture screen: " + err.message);
+        }
+        setIsSharingScreen(false);
+        setShowShareModal(false);
+        setIsScreenShareTransitioning(false);
+        return;
+      }
 
       screenStreamRef.current = screenStream;
       setIsSharingScreen(true);
 
-      const screenTrack = screenStream.getVideoTracks()[0];
-      if (!screenTrack) {
+      const screenVideoTrack = screenStream.getVideoTracks()[0];
+      if (!screenVideoTrack) {
         throw new Error("No video track in screen stream");
       }
 
-      const sender = peerRef.current
+      screenVideoTrackRef.current = screenVideoTrack;
+
+      // Handle audio mixing
+      let audioStreamToSend = null;
+
+      if (shareAudio) {
+        const screenAudioTracks = screenStream.getAudioTracks();
+        if (screenAudioTracks.length > 0) {
+          desktopAudioTrackRef.current = screenAudioTracks[0];
+          console.log("✅ Desktop audio captured");
+
+          try {
+            // Create mixed audio: desktop audio + microphone
+            audioStreamToSend = await createAudioMix(screenStream, localStreamRef.current);
+            console.log("🎵 Audio mix created successfully");
+          } catch (audioMixErr) {
+            console.warn("⚠️ Audio mixing failed, using desktop audio only:", audioMixErr);
+            setScreenShareAudioError("Desktop audio mixing unavailable, using direct audio only");
+            audioStreamToSend = screenStream;
+          }
+        }
+      }
+
+      // Replace video track
+      let videoSender = peerRef.current
         .getSenders()
         .find((s) => s.track && s.track.kind === "video");
 
-      if (sender) {
-        console.log("🔄 Replacing existing video track");
-        await sender.replaceTrack(screenTrack);
+      if (videoSender) {
+        console.log("🔄 Replacing video track");
+        await videoSender.replaceTrack(screenVideoTrack);
       } else {
         console.log("➕ Adding new video track");
-        peerRef.current.addTrack(screenTrack, screenStream);
+        peerRef.current.addTrack(screenVideoTrack, screenStream);
+      }
+
+      // Handle audio track replacement
+      if (audioStreamToSend) {
+        let audioSender = peerRef.current
+          .getSenders()
+          .find((s) => s.track && s.track.kind === "audio");
+
+        const mixedAudioTrack = audioStreamToSend.getAudioTracks()[0];
+        if (mixedAudioTrack) {
+          if (audioSender) {
+            console.log("🔄 Replacing audio track with mixed audio");
+            await audioSender.replaceTrack(mixedAudioTrack);
+          } else {
+            console.log("➕ Adding mixed audio track");
+            peerRef.current.addTrack(mixedAudioTrack, audioStreamToSend);
+          }
+        }
       }
 
       console.log("📢 Notifying remote peer of screenshare start");
@@ -464,7 +599,7 @@ export default function Social({ setPage }) {
         targetUserId: remoteUserRef.current,
       });
 
-      screenTrack.onended = async () => {
+      screenVideoTrack.onended = async () => {
         console.log("🛑 User stopped screenshare");
         await stopScreenShare();
       };
@@ -472,7 +607,7 @@ export default function Social({ setPage }) {
       await renegotiate();
 
       setShowShareModal(false);
-      console.log("✅ Screenshare started");
+      console.log("✅ Screenshare started with audio");
     } catch (err) {
       console.error("❌ Screenshare error:", err);
 
@@ -509,18 +644,34 @@ export default function Social({ setPage }) {
         console.log("⏹️ Stopped", track.kind, "track");
       });
 
-      const sender = peerRef.current
+      // Replace video track with null
+      let videoSender = peerRef.current
         .getSenders()
         .find((s) => s.track && s.track.kind === "video");
 
-      if (sender) {
-        console.log("🔄 Removing video track from peer connection");
-        await sender.replaceTrack(null);
-        await new Promise((resolve) => setTimeout(resolve, 100));
+      if (videoSender) {
+        console.log("🔄 Removing video track");
+        await videoSender.replaceTrack(null);
+      }
+
+      // Replace audio track with original microphone audio
+      const originalMicTrack = localStreamRef.current?.getAudioTracks()[0];
+      if (originalMicTrack) {
+        let audioSender = peerRef.current
+          .getSenders()
+          .find((s) => s.track && s.track.kind === "audio");
+
+        if (audioSender) {
+          console.log("🔄 Restoring original microphone audio");
+          await audioSender.replaceTrack(originalMicTrack);
+        }
       }
 
       screenStreamRef.current = null;
+      desktopAudioTrackRef.current = null;
+      screenVideoTrackRef.current = null;
       setIsSharingScreen(false);
+      setScreenShareAudioError(null);
 
       console.log("📢 Notifying remote peer of screenshare stop");
       socketRef.current.emit("screen-share-stopped", {
@@ -529,9 +680,10 @@ export default function Social({ setPage }) {
 
       await renegotiate();
 
-      console.log("✅ Screenshare stopped");
+      console.log("✅ Screenshare stopped, microphone restored");
     } catch (err) {
       console.error("❌ Error stopping screenshare:", err);
+      alert("Error stopping screenshare: " + err.message);
     } finally {
       setIsScreenShareTransitioning(false);
     }
@@ -747,7 +899,7 @@ export default function Social({ setPage }) {
 
     socketRef.current.on("incoming-voice-offer", async ({ offer, callerId }) => {
       console.log("Offer received, current connection state:", peerRef.current?.connectionState);
-      
+
       if (peerRef.current && peerRef.current.connectionState !== "closed") {
         console.log("🔄 Renegotiation offer received");
 
@@ -1504,29 +1656,41 @@ export default function Social({ setPage }) {
       {showShareModal && (
         <div className="share-modal-overlay">
           <div className="share-modal">
-            <h3>Screen Share</h3>
+            <h3>🖥️ Screen Share</h3>
 
-            <label>Quality</label>
+            <label>Video Quality</label>
 
             <select
               value={shareQuality}
               onChange={(e) => setShareQuality(e.target.value)}
             >
-              <option value="4k">4K</option>
-              <option value="2k">2K</option>
-              <option value="1080p">1080P</option>
-              <option value="720p">720P</option>
-              <option value="360p">360P</option>
+              <option value="4k">4K (3840x2160)</option>
+              <option value="2k">2K (2560x1440)</option>
+              <option value="1080p">1080P (1920x1080)</option>
+              <option value="720p">720P (1280x720)</option>
+              <option value="360p">360P (640x360)</option>
             </select>
 
-            <label>
+            <label className="audio-toggle">
               <input
                 type="checkbox"
                 checked={shareAudio}
                 onChange={(e) => setShareAudio(e.target.checked)}
               />
-              Stream Audio (Note: Separate from call audio)
+              <span>🔊 Stream Desktop Audio</span>
             </label>
+
+            {shareAudio && (
+              <p style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>
+                ℹ️ Desktop audio + your microphone will be transmitted. Your friend will hear everything on your screen.
+              </p>
+            )}
+
+            {screenShareAudioError && (
+              <p style={{ fontSize: "12px", color: "#ff6b6b", marginTop: "8px" }}>
+                ⚠️ {screenShareAudioError}
+              </p>
+            )}
 
             <button onClick={startScreenShare}>Start Sharing</button>
 
