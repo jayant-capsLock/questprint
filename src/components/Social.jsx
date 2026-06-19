@@ -23,6 +23,9 @@ export default function Social({ setPage }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const screenShareContainerRef = useRef(null);
 
+  const [isSharingScreen, setIsSharingScreen] = useState(false);
+  const [friendIsSharing, setFriendIsSharing] = useState(false);
+
   const [onlineUsers, setOnlineUsers] = useState([]);
 
   const currentUserId = currentUser?._id;
@@ -70,6 +73,12 @@ export default function Social({ setPage }) {
       targetUserId: remoteUserRef.current,
     });
 
+    setRemoteScreenStream(null);
+
+    setIsSharingScreen(false);
+
+    setFriendIsSharing(false);
+
     peerRef.current?.close();
 
     localStreamRef.current?.getTracks().forEach((track) => {
@@ -94,7 +103,7 @@ export default function Social({ setPage }) {
     iceCandidateQueueRef.current = [];
     setIsFullscreen(false);
     setShowScreenShare(true);
-
+    setIsMuted(false);
     setInCall(false);
   };
 
@@ -150,6 +159,8 @@ export default function Social({ setPage }) {
 
       screenStreamRef.current = screenStream;
 
+      setIsSharingScreen(true);
+
       // Add screen video track to peer connection
       const screenTrack = screenStream.getVideoTracks()[0];
       const sender = peerRef.current
@@ -199,7 +210,6 @@ export default function Social({ setPage }) {
         track.stop();
       });
 
-      // Replace screen track back with original video track or remove it
       const sender = peerRef.current
         .getSenders()
         .find((s) => s.track && s.track.kind === "video");
@@ -209,6 +219,13 @@ export default function Social({ setPage }) {
       }
 
       screenStreamRef.current = null;
+      setIsSharingScreen(false);
+
+      // Tell the remote peer to actually clear their video, not just freeze
+      socketRef.current.emit("screen-share-stopped", {
+        targetUserId: remoteUserRef.current,
+      });
+
       await renegotiate();
     } catch (err) {
       console.log("Error stopping screen share:", err);
@@ -280,11 +297,19 @@ export default function Social({ setPage }) {
             audioRef.current = new Audio();
           }
           audioRef.current.srcObject = event.streams[0];
-          audioRef.current.play().catch((e) => console.log("Auto-play error:", e));
+          audioRef.current
+            .play()
+            .catch((e) => console.log("Auto-play error:", e));
         }
 
         if (track.kind === "video") {
           setRemoteScreenStream(event.streams[0]);
+          setFriendIsSharing(true);
+
+          track.onended = () => {
+            setRemoteScreenStream(null);
+            setFriendIsSharing(false);
+          };
         }
       };
 
@@ -292,6 +317,7 @@ export default function Social({ setPage }) {
       console.log(stream);
 
       setInCall(true);
+      setIsMuted(false);
 
       stream.getTracks().forEach((track) => {
         peerRef.current.addTrack(track, stream);
@@ -358,6 +384,20 @@ export default function Social({ setPage }) {
 
   useEffect(() => {
     messageSoundRef.current = new Audio("/notification.mp3");
+  }, []);
+
+  useEffect(() => {
+    socketRef.current.on("screen-share-stopped", () => {
+      console.log("Remote stopped sharing");
+
+      setRemoteScreenStream(null);
+      setFriendIsSharing(false);
+      setShowScreenShare(true);
+    });
+
+    return () => {
+      socketRef.current.off("screen-share-stopped");
+    };
   }, []);
 
   useEffect(() => {
@@ -437,6 +477,12 @@ export default function Social({ setPage }) {
       ringtoneRef.current?.pause();
       ringtoneRef.current.currentTime = 0;
 
+      setRemoteScreenStream(null);
+
+      setIsSharingScreen(false);
+
+      setFriendIsSharing(false);
+
       peerRef.current?.close();
 
       localStreamRef.current?.getTracks().forEach((track) => {
@@ -462,6 +508,7 @@ export default function Social({ setPage }) {
 
       setIncomingCall(null);
       setInCall(false);
+      setIsMuted(false);
 
       console.log("Caller cancelled");
     });
@@ -569,6 +616,12 @@ export default function Social({ setPage }) {
     socketRef.current.on("call-ended", () => {
       peerRef.current?.close();
 
+      setRemoteScreenStream(null);
+
+      setIsSharingScreen(false);
+
+      setFriendIsSharing(false);
+
       localStreamRef.current?.getTracks().forEach((track) => {
         track.stop();
       });
@@ -593,6 +646,7 @@ export default function Social({ setPage }) {
       setIsFullscreen(false);
       setShowScreenShare(true);
       setInCall(false);
+      setIsMuted(false);
 
       console.log("Other user ended call");
     });
@@ -655,11 +709,19 @@ export default function Social({ setPage }) {
             audioRef.current = new Audio();
           }
           audioRef.current.srcObject = event.streams[0];
-          audioRef.current.play().catch((e) => console.log("Auto-play error:", e));
+          audioRef.current
+            .play()
+            .catch((e) => console.log("Auto-play error:", e));
         }
 
         if (track.kind === "video") {
           setRemoteScreenStream(event.streams[0]);
+          setFriendIsSharing(true);
+
+          track.onended = () => {
+            setRemoteScreenStream(null);
+            setFriendIsSharing(false);
+          };
         }
       };
 
@@ -686,6 +748,7 @@ export default function Social({ setPage }) {
 
       setIncomingCall(null);
       setInCall(true);
+      setIsMuted(false);
 
       // Process queued ICE candidates
       while (iceCandidateQueueRef.current.length > 0) {
@@ -1095,6 +1158,11 @@ export default function Social({ setPage }) {
                     🖥️ Share
                   </button>
                 )}
+                {inCall && isSharingScreen && (
+                  <button className="stop-share-btn" onClick={stopScreenShare}>
+                    ⏹ Stop Share
+                  </button>
+                )}
 
                 {inCall && remoteScreenStream && !showScreenShare && (
                   <button
@@ -1200,6 +1268,13 @@ export default function Social({ setPage }) {
             >
               <div className="friend-left">
                 <div className="friend-avatar">
+                  <div
+                    className={
+                      onlineUsers.includes(friend._id)
+                        ? "friend-avatar-dot-on"
+                        : "friend-avatar-dot-off"
+                    }
+                  ></div>
                   {friend.profilePicture ? (
                     <img
                       src={friend.profilePicture}

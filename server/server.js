@@ -13,7 +13,6 @@ const { Server } = require("socket.io");
 const Message = require("./models/Message");
 const upload = require("./middleware/upload");
 
-
 const app = express();
 app.use(express.json());
 app.use(cors());
@@ -230,6 +229,13 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("screen-share-stopped", ({ targetUserId }) => {
+    const targetSocketId = onlineUsers[targetUserId]; // however you track this elsewhere
+    if (targetSocketId) {
+      io.to(targetSocketId).emit("screen-share-stopped");
+    }
+  });
+
   socket.on("voice-answer", ({ targetUserId, answer }) => {
     const receiverSocket = onlineUsers[targetUserId];
 
@@ -237,6 +243,14 @@ io.on("connection", (socket) => {
       io.to(receiverSocket).emit("incoming-voice-answer", {
         answer,
       });
+    }
+  });
+
+  socket.on("screen-share-stopped", ({ targetUserId }) => {
+    const targetSocket = onlineUsers[targetUserId];
+
+    if (targetSocket) {
+      io.to(targetSocket).emit("screen-share-stopped");
     }
   });
 
