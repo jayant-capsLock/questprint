@@ -40,10 +40,12 @@ export default function Social({ setPage }) {
   const [isMuted, setIsMuted] = useState(false);
   const callTimeoutRef = useRef(null);
   const iceCandidateQueueRef = useRef([]);
+  const remoteStreamRef = useRef(null);
   const [remoteScreenStream, setRemoteScreenStream] = useState(null);
   const [showScreenShare, setShowScreenShare] = useState(true);
   const [showShareModal, setShowShareModal] = useState(false);
   const inCallRef = useRef(false);
+  const remoteDescriptionSetRef = useRef(false);
 
   const [shareQuality, setShareQuality] = useState("1080p");
   const [shareAudio, setShareAudio] = useState(true);
@@ -57,12 +59,38 @@ export default function Social({ setPage }) {
   };
 
   // ============================================================
+  // AUDIO INITIALIZATION - CRITICAL FIX: DOM Audio Element
+  // ============================================================
+
+  const initializeAudioElement = () => {
+    if (!audioRef.current) {
+      audioRef.current = document.createElement("audio");
+      audioRef.current.autoplay = true;
+      audioRef.current.playsInline = true;
+      audioRef.current.volume = 1.0;
+      audioRef.current.style.display = "none";
+      document.body.appendChild(audioRef.current);
+    }
+    return audioRef.current;
+  };
+
+  // ============================================================
   // CORE FUNCTIONS
   // ============================================================
 
   const renegotiate = async () => {
     try {
       console.log("🔄 Renegotiation started");
+
+      if (!peerRef.current) {
+        console.error("❌ Peer connection not available");
+        return;
+      }
+
+      if (peerRef.current.signalingState !== "stable") {
+        console.warn("⚠️ Not in stable state for renegotiation:", peerRef.current.signalingState);
+        return;
+      }
 
       const offer = await peerRef.current.createOffer();
       await peerRef.current.setLocalDescription(offer);
@@ -72,6 +100,8 @@ export default function Social({ setPage }) {
         targetUserId: remoteUserRef.current,
         offer,
       });
+
+      console.log("✅ Renegotiation completed");
     } catch (err) {
       console.error("❌ Renegotiation error:", err);
     }
@@ -81,8 +111,11 @@ export default function Social({ setPage }) {
     if (!localStreamRef.current) return;
 
     const audioTrack = localStreamRef.current.getAudioTracks()[0];
-    audioTrack.enabled = !audioTrack.enabled;
-    setIsMuted(!audioTrack.enabled);
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      setIsMuted(!audioTrack.enabled);
+      console.log(`🎤 Audio ${audioTrack.enabled ? "enabled" : "muted"}`);
+    }
   };
 
   const startVoiceCall = async () => {
@@ -97,6 +130,7 @@ export default function Social({ setPage }) {
             noiseSuppression: true,
             autoGainControl: true,
           },
+          video: false,
         });
       } catch (mediaErr) {
         if (mediaErr.name === "NotAllowedError") {
@@ -117,6 +151,7 @@ export default function Social({ setPage }) {
             urls: [
               "stun:stun.l.google.com:19302",
               "stun:stun1.l.google.com:19302",
+              "stun:stun2.l.google.com:19302",
             ],
           },
         ],
@@ -137,12 +172,14 @@ export default function Social({ setPage }) {
         console.log("📥 Track received:", track.kind);
 
         if (track.kind === "audio") {
-          if (audioRef.current) {
-            audioRef.current.srcObject = event.streams[0];
-            audioRef.current.play().catch((e) => {
-              console.warn("⚠️ Auto-play failed:", e);
-            });
-          }
+          const audio = initializeAudioElement();
+          remoteStreamRef.current = event.streams[0];
+          audio.srcObject = event.streams[0];
+          
+          audio.play().catch((e) => {
+            console.warn("⚠️ Auto-play failed:", e);
+            audio.muted = false;
+          });
         }
 
         if (track.kind === "video") {
@@ -167,6 +204,7 @@ export default function Social({ setPage }) {
       await peerRef.current.setLocalDescription(offer);
 
       remoteUserRef.current = selectedFriend._id;
+      remoteDescriptionSetRef.current = false;
       setInCall(true);
       setIsMuted(false);
 
@@ -179,6 +217,7 @@ export default function Social({ setPage }) {
     } catch (err) {
       console.error("❌ Error starting call:", err);
       alert("Failed to start call: " + err.message);
+      endCall();
     }
   };
 
@@ -200,6 +239,7 @@ export default function Social({ setPage }) {
             noiseSuppression: true,
             autoGainControl: true,
           },
+          video: false,
         });
       } catch (mediaErr) {
         if (mediaErr.name === "NotAllowedError") {
@@ -219,6 +259,7 @@ export default function Social({ setPage }) {
             urls: [
               "stun:stun.l.google.com:19302",
               "stun:stun1.l.google.com:19302",
+              "stun:stun2.l.google.com:19302",
             ],
           },
         ],
@@ -226,7 +267,7 @@ export default function Social({ setPage }) {
 
       peerRef.current.onicecandidate = (event) => {
         if (event.candidate) {
-          console.log("📤 Sending ICE candidate");
+          console.log("📤 Sending ICE candidate from answer side");
           socketRef.current.emit("ice-candidate", {
             targetUserId: callerId,
             candidate: event.candidate,
@@ -239,12 +280,14 @@ export default function Social({ setPage }) {
         console.log("📥 Track received:", track.kind);
 
         if (track.kind === "audio") {
-          if (audioRef.current) {
-            audioRef.current.srcObject = event.streams[0];
-            audioRef.current.play().catch((e) => {
-              console.warn("⚠️ Auto-play failed:", e);
-            });
-          }
+          const audio = initializeAudioElement();
+          remoteStreamRef.current = event.streams[0];
+          audio.srcObject = event.streams[0];
+          
+          audio.play().catch((e) => {
+            console.warn("⚠️ Auto-play failed:", e);
+            audio.muted = false;
+          });
         }
 
         if (track.kind === "video") {
@@ -252,6 +295,7 @@ export default function Social({ setPage }) {
           setFriendIsSharing(true);
 
           track.onended = () => {
+            console.log("🎥 Screen track ended");
             setRemoteScreenStream(null);
             setFriendIsSharing(false);
           };
@@ -263,7 +307,9 @@ export default function Social({ setPage }) {
       });
 
       console.log("📝 Processing offer and creating answer...");
-      await peerRef.current.setRemoteDescription(offer);
+      await peerRef.current.setRemoteDescription(new RTCSessionDescription(offer));
+      remoteDescriptionSetRef.current = true;
+
       const answer = await peerRef.current.createAnswer();
       await peerRef.current.setLocalDescription(answer);
 
@@ -277,6 +323,7 @@ export default function Social({ setPage }) {
       setInCall(true);
       setIsMuted(false);
 
+      console.log("📋 Processing", iceCandidateQueueRef.current.length, "queued ICE candidates");
       while (iceCandidateQueueRef.current.length > 0) {
         const queuedCandidate = iceCandidateQueueRef.current.shift();
         try {
@@ -303,19 +350,24 @@ export default function Social({ setPage }) {
     ringtoneRef.current?.pause();
     ringtoneRef.current.currentTime = 0;
 
+    if (incomingCall) {
+      socketRef.current.emit("cancel-call", {
+        targetUserId: incomingCall.callerId,
+      });
+    }
+
     setIncomingCall(null);
-    socketRef.current.emit("cancel-call", {
-      targetUserId: incomingCall.callerId,
-    });
   };
 
   const endCall = () => {
     console.log("☎️ Ending call");
     clearTimeout(callTimeoutRef.current);
 
-    socketRef.current.emit("end-call", {
-      targetUserId: remoteUserRef.current,
-    });
+    if (remoteUserRef.current) {
+      socketRef.current.emit("end-call", {
+        targetUserId: remoteUserRef.current,
+      });
+    }
 
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
@@ -333,19 +385,21 @@ export default function Social({ setPage }) {
       screenStreamRef.current = null;
     }
 
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.srcObject = null;
+    }
+
     if (peerRef.current) {
       peerRef.current.close();
       peerRef.current = null;
       console.log("🔌 Peer connection closed");
     }
 
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.srcObject = null;
-    }
-
     iceCandidateQueueRef.current = [];
     remoteUserRef.current = null;
+    remoteStreamRef.current = null;
+    remoteDescriptionSetRef.current = false;
 
     setIsFullscreen(false);
     setShowScreenShare(true);
@@ -365,6 +419,11 @@ export default function Social({ setPage }) {
       return;
     }
 
+    if (!peerRef.current || peerRef.current.connectionState !== "connected") {
+      alert("❌ Call must be connected before sharing screen");
+      return;
+    }
+
     try {
       setIsScreenShareTransitioning(true);
       console.log("🖥️ Starting screenshare at", shareQuality, "quality");
@@ -377,11 +436,7 @@ export default function Social({ setPage }) {
           height: { ideal: selected.height },
           frameRate: { ideal: 30 },
         },
-        audio: shareAudio && {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
+        audio: false,
       });
 
       screenStreamRef.current = screenStream;
@@ -404,24 +459,20 @@ export default function Social({ setPage }) {
         peerRef.current.addTrack(screenTrack, screenStream);
       }
 
-      screenStream.getAudioTracks().forEach((track) => {
-        track.stop();
-      });
-
       console.log("📢 Notifying remote peer of screenshare start");
       socketRef.current.emit("screen-share-started", {
         targetUserId: remoteUserRef.current,
       });
 
+      screenTrack.onended = async () => {
+        console.log("🛑 User stopped screenshare");
+        await stopScreenShare();
+      };
+
       await renegotiate();
 
       setShowShareModal(false);
       console.log("✅ Screenshare started");
-
-      screenTrack.onended = () => {
-        console.log("🛑 User stopped screenshare");
-        stopScreenShare();
-      };
     } catch (err) {
       console.error("❌ Screenshare error:", err);
 
@@ -659,7 +710,6 @@ export default function Social({ setPage }) {
   // USEEFFECTS - PROPER ORDER
   // ============================================================
 
-  // 1. SOCKET CONNECTION FIRST
   useEffect(() => {
     socketRef.current = io(import.meta.env.VITE_API_URL);
 
@@ -668,7 +718,6 @@ export default function Social({ setPage }) {
     };
   }, []);
 
-  // 2. THEN attach handlers
   useEffect(() => {
     if (!socketRef.current) return;
 
@@ -681,7 +730,6 @@ export default function Social({ setPage }) {
     };
   }, []);
 
-  // 3. Online users handler
   useEffect(() => {
     if (!socketRef.current) return;
 
@@ -694,33 +742,34 @@ export default function Social({ setPage }) {
     };
   }, []);
 
-  // 4. Incoming voice offer handler
   useEffect(() => {
     if (!socketRef.current) return;
 
     socketRef.current.on("incoming-voice-offer", async ({ offer, callerId }) => {
-      console.log(
-        "Offer received",
-        inCallRef.current,
-        peerRef.current?.connectionState,
-      );
+      console.log("Offer received, current connection state:", peerRef.current?.connectionState);
+      
       if (peerRef.current && peerRef.current.connectionState !== "closed") {
-        console.log("Renegotiation offer received");
+        console.log("🔄 Renegotiation offer received");
 
-        await peerRef.current.setRemoteDescription(offer);
+        try {
+          await peerRef.current.setRemoteDescription(new RTCSessionDescription(offer));
+          remoteDescriptionSetRef.current = true;
 
-        const answer = await peerRef.current.createAnswer();
+          const answer = await peerRef.current.createAnswer();
+          await peerRef.current.setLocalDescription(answer);
 
-        await peerRef.current.setLocalDescription(answer);
-
-        socketRef.current.emit("voice-answer", {
-          targetUserId: callerId,
-          answer,
-        });
+          socketRef.current.emit("voice-answer", {
+            targetUserId: callerId,
+            answer,
+          });
+        } catch (err) {
+          console.error("❌ Renegotiation failed:", err);
+        }
 
         return;
       }
-      console.log("INCOMING CALL RECEIVED");
+
+      console.log("🔔 INCOMING CALL RECEIVED from", callerId);
       remoteUserRef.current = callerId;
 
       setIncomingCall({
@@ -731,14 +780,14 @@ export default function Social({ setPage }) {
       callTimeoutRef.current = setTimeout(() => {
         ringtoneRef.current?.pause();
         ringtoneRef.current.currentTime = 0;
-
         setIncomingCall(null);
 
         socketRef.current.emit("cancel-call", {
           targetUserId: callerId,
         });
       }, 180000);
-      ringtoneRef.current?.play();
+
+      ringtoneRef.current?.play().catch((e) => console.log("Ringtone autoplay prevented:", e));
     });
 
     return () => {
@@ -746,22 +795,22 @@ export default function Social({ setPage }) {
     };
   }, []);
 
-  // 5. Incoming voice answer handler
   useEffect(() => {
     if (!socketRef.current) return;
 
     socketRef.current.on("incoming-voice-answer", async ({ answer }) => {
       try {
-        console.log("Answer received");
+        console.log("📞 Answer received, signaling state:", peerRef.current?.signalingState);
 
-        if (peerRef.current.signalingState !== "have-local-offer") {
-          console.log("Skipping wrong state");
+        if (!peerRef.current || peerRef.current.signalingState !== "have-local-offer") {
+          console.log("⚠️ Skipping answer - wrong state");
           return;
         }
 
-        await peerRef.current.setRemoteDescription(answer);
+        await peerRef.current.setRemoteDescription(new RTCSessionDescription(answer));
+        remoteDescriptionSetRef.current = true;
 
-        console.log("CALL CONNECTED 🎉");
+        console.log("✅ CALL CONNECTED");
 
         while (iceCandidateQueueRef.current.length > 0) {
           const queuedCandidate = iceCandidateQueueRef.current.shift();
@@ -769,13 +818,14 @@ export default function Social({ setPage }) {
             await peerRef.current.addIceCandidate(
               new RTCIceCandidate(queuedCandidate),
             );
-            console.log("Queued ICE added");
           } catch (err) {
-            console.error(err);
+            if (!err.message.includes("duplicate")) {
+              console.error("Error adding queued ICE:", err);
+            }
           }
         }
       } catch (err) {
-        console.error(err);
+        console.error("❌ Error setting remote description:", err);
       }
     });
 
@@ -784,7 +834,6 @@ export default function Social({ setPage }) {
     };
   }, []);
 
-  // 6. ICE candidate handler
   useEffect(() => {
     if (!socketRef.current) return;
 
@@ -797,7 +846,7 @@ export default function Social({ setPage }) {
         return;
       }
 
-      if (!peerRef.current.remoteDescription) {
+      if (!remoteDescriptionSetRef.current) {
         console.log("⏳ Remote description not set, queueing ICE");
         iceCandidateQueueRef.current.push(candidate);
         return;
@@ -820,47 +869,15 @@ export default function Social({ setPage }) {
     };
   }, []);
 
-  // 7. Call cancelled handler
   useEffect(() => {
     if (!socketRef.current) return;
 
     socketRef.current.on("call-cancelled", () => {
+      console.log("📞 Call cancelled by remote");
       clearTimeout(callTimeoutRef.current);
-
       ringtoneRef.current?.pause();
       ringtoneRef.current.currentTime = 0;
-
-      setRemoteScreenStream(null);
-      setIsSharingScreen(false);
-      setFriendIsSharing(false);
-
-      peerRef.current?.close();
-
-      localStreamRef.current?.getTracks().forEach((track) => {
-        track.stop();
-      });
-
-      screenStreamRef.current?.getTracks().forEach((track) => {
-        track.stop();
-      });
-
-      screenStreamRef.current = null;
-
-      if (audioRef.current) {
-        audioRef.current.srcObject = null;
-        audioRef.current.remove();
-        audioRef.current = null;
-      }
-
-      peerRef.current = null;
-      localStreamRef.current = null;
-      iceCandidateQueueRef.current = [];
-
-      setIncomingCall(null);
-      setInCall(false);
-      setIsMuted(false);
-
-      console.log("Caller cancelled");
+      endCall();
     });
 
     return () => {
@@ -868,43 +885,12 @@ export default function Social({ setPage }) {
     };
   }, []);
 
-  // 8. Call ended handler
   useEffect(() => {
     if (!socketRef.current) return;
 
     socketRef.current.on("call-ended", () => {
-      peerRef.current?.close();
-
-      setRemoteScreenStream(null);
-      setIsSharingScreen(false);
-      setFriendIsSharing(false);
-
-      localStreamRef.current?.getTracks().forEach((track) => {
-        track.stop();
-      });
-
-      screenStreamRef.current?.getTracks().forEach((track) => {
-        track.stop();
-      });
-
-      screenStreamRef.current = null;
-
-      if (audioRef.current) {
-        audioRef.current.srcObject = null;
-        audioRef.current.remove();
-        audioRef.current = null;
-      }
-
-      peerRef.current = null;
-      localStreamRef.current = null;
-      iceCandidateQueueRef.current = [];
-
-      setIsFullscreen(false);
-      setShowScreenShare(true);
-      setInCall(false);
-      setIsMuted(false);
-
-      console.log("Other user ended call");
+      console.log("📞 Call ended by remote");
+      endCall();
     });
 
     return () => {
@@ -912,13 +898,11 @@ export default function Social({ setPage }) {
     };
   }, []);
 
-  // 9. Screen share stopped handler
   useEffect(() => {
     if (!socketRef.current) return;
 
     socketRef.current.on("screen-share-stopped", () => {
       console.log("Remote stopped sharing");
-
       setRemoteScreenStream(null);
       setFriendIsSharing(false);
       setShowScreenShare(true);
@@ -929,7 +913,6 @@ export default function Social({ setPage }) {
     };
   }, []);
 
-  // 10. Screen share started handler
   useEffect(() => {
     if (!socketRef.current) return;
 
@@ -943,18 +926,13 @@ export default function Social({ setPage }) {
     };
   }, []);
 
-  // 11. Call error handler
   useEffect(() => {
     if (!socketRef.current) return;
 
     socketRef.current.on("call-error", ({ message, code }) => {
       console.error("❌ Call error:", code, message);
       alert("Call error: " + message);
-
-      if (peerRef.current && peerRef.current.connectionState !== "closed") {
-        endCall();
-      }
-
+      endCall();
       setIncomingCall(null);
       setInCall(false);
     });
@@ -964,7 +942,6 @@ export default function Social({ setPage }) {
     };
   }, []);
 
-  // 12. New message handler
   useEffect(() => {
     if (!socketRef.current) return;
 
@@ -977,7 +954,7 @@ export default function Social({ setPage }) {
           selectedFriend._id === message.receiver);
 
       if (!isCurrentChat) {
-        messageSoundRef.current?.play();
+        messageSoundRef.current?.play().catch(() => {});
       }
 
       if (isCurrentChat) {
@@ -997,27 +974,6 @@ export default function Social({ setPage }) {
     };
   }, [selectedFriend]);
 
-  // ============================================================
-  // AUDIO INITIALIZATION
-  // ============================================================
-
-  useEffect(() => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio();
-      audioRef.current.volume = 1.0;
-      audioRef.current.autoplay = true;
-      audioRef.current.playsInline = true;
-    }
-
-    return () => {
-      // Don't cleanup here - let endCall handle it
-    };
-  }, []);
-
-  // ============================================================
-  // CONNECTION STATE MONITORING
-  // ============================================================
-
   useEffect(() => {
     if (!peerRef.current) return;
 
@@ -1026,7 +982,7 @@ export default function Social({ setPage }) {
       console.log("🔗 Connection state:", state);
 
       if (state === "failed") {
-        console.error("❌ Connection FAILED - attempting recovery");
+        console.error("❌ Connection FAILED");
         if (inCallRef.current && remoteUserRef.current) {
           renegotiate();
         }
@@ -1062,10 +1018,6 @@ export default function Social({ setPage }) {
     };
   }, []);
 
-  // ============================================================
-  // HEARTBEAT (CRITICAL FOR LONG CALLS)
-  // ============================================================
-
   useEffect(() => {
     if (!inCall || !socketRef.current) return;
 
@@ -1075,17 +1027,13 @@ export default function Social({ setPage }) {
       socketRef.current.emit("connection-heartbeat", {
         timestamp: Date.now(),
       });
-    }, 30000); // Every 30 seconds
+    }, 30000);
 
     return () => {
       clearInterval(heartbeatInterval);
       console.log("💓 Heartbeat stopped");
     };
   }, [inCall]);
-
-  // ============================================================
-  // OTHER EFFECTS
-  // ============================================================
 
   useEffect(() => {
     inCallRef.current = inCall;
@@ -1577,7 +1525,7 @@ export default function Social({ setPage }) {
                 checked={shareAudio}
                 onChange={(e) => setShareAudio(e.target.checked)}
               />
-              Stream Audio
+              Stream Audio (Note: Separate from call audio)
             </label>
 
             <button onClick={startScreenShare}>Start Sharing</button>
