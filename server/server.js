@@ -229,13 +229,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("screen-share-stopped", ({ targetUserId }) => {
-    const targetSocketId = onlineUsers[targetUserId]; // however you track this elsewhere
-    if (targetSocketId) {
-      io.to(targetSocketId).emit("screen-share-stopped");
-    }
-  });
-
   socket.on("voice-answer", ({ targetUserId, answer }) => {
     const receiverSocket = onlineUsers[targetUserId];
 
