@@ -2,7 +2,6 @@ import "./styles/social.css";
 import axios from "axios";
 import { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
-import { formatDistanceToNow } from "date-fns";
 
 export default function Social({ setPage }) {
   const [players, setPlayers] = useState([]);
@@ -23,18 +22,13 @@ export default function Social({ setPage }) {
   const screenStreamRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const screenShareContainerRef = useRef(null);
-  const [typingUser, setTypingUser] = useState(null);
-
-  const [unreadCounts, setUnreadCounts] = useState({});
-
+  const [isScreenShareTransitioning, setIsScreenShareTransitioning] = useState(false);
   const [isSharingScreen, setIsSharingScreen] = useState(false);
   const [friendIsSharing, setFriendIsSharing] = useState(false);
 
   const [onlineUsers, setOnlineUsers] = useState([]);
 
   const currentUserId = currentUser?._id;
-
-  
 
   const [showMenu, setShowMenu] = useState(null);
   const localStreamRef = useRef(null);
@@ -52,15 +46,25 @@ export default function Social({ setPage }) {
   const inCallRef = useRef(false);
 
   const [shareQuality, setShareQuality] = useState("1080p");
-
   const [shareAudio, setShareAudio] = useState(true);
+
+  const qualityMap = {
+    "4k": { width: 3840, height: 2160 },
+    "2k": { width: 2560, height: 1440 },
+    "1080p": { width: 1920, height: 1080 },
+    "720p": { width: 1280, height: 720 },
+    "360p": { width: 640, height: 360 },
+  };
+
+  // ============================================================
+  // CORE FUNCTIONS
+  // ============================================================
 
   const renegotiate = async () => {
     try {
-      console.log("Renegotiation started");
+      console.log("🔄 Renegotiation started");
 
       const offer = await peerRef.current.createOffer();
-
       await peerRef.current.setLocalDescription(offer);
 
       socketRef.current.emit("voice-offer", {
@@ -69,151 +73,389 @@ export default function Social({ setPage }) {
         offer,
       });
     } catch (err) {
-      console.log(err);
+      console.error("❌ Renegotiation error:", err);
     }
-  };
-
-  const endCall = () => {
-    clearTimeout(callTimeoutRef.current);
-    socketRef.current.emit("end-call", {
-      targetUserId: remoteUserRef.current,
-    });
-
-    setRemoteScreenStream(null);
-
-    setIsSharingScreen(false);
-
-    setFriendIsSharing(false);
-
-    peerRef.current?.close();
-
-    localStreamRef.current?.getTracks().forEach((track) => {
-      track.stop();
-    });
-
-    screenStreamRef.current?.getTracks().forEach((track) => {
-      track.stop();
-    });
-
-    screenStreamRef.current = null;
-
-    // Clean up audio element
-    if (audioRef.current) {
-      audioRef.current.srcObject = null;
-      audioRef.current.remove();
-      audioRef.current = null;
-    }
-
-    peerRef.current = null;
-    localStreamRef.current = null;
-    iceCandidateQueueRef.current = [];
-    setIsFullscreen(false);
-    setShowScreenShare(true);
-    setIsMuted(false);
-    setInCall(false);
   };
 
   const toggleMute = () => {
     if (!localStreamRef.current) return;
 
     const audioTrack = localStreamRef.current.getAudioTracks()[0];
-
     audioTrack.enabled = !audioTrack.enabled;
-
     setIsMuted(!audioTrack.enabled);
   };
 
-  const qualityMap = {
-    "4k": {
-      width: 3840,
-      height: 2160,
-    },
+  const startVoiceCall = async () => {
+    try {
+      console.log("📞 Starting voice call...");
 
-    "2k": {
-      width: 2560,
-      height: 1440,
-    },
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } catch (mediaErr) {
+        if (mediaErr.name === "NotAllowedError") {
+          alert("❌ Please allow microphone access to make calls\n\nCheck your browser permissions.");
+        } else if (mediaErr.name === "NotFoundError") {
+          alert("❌ No microphone found on your device");
+        } else {
+          alert("❌ Error accessing microphone:\n\n" + mediaErr.message);
+        }
+        return;
+      }
 
-    "1080p": {
-      width: 1920,
-      height: 1080,
-    },
+      localStreamRef.current = stream;
 
-    "720p": {
-      width: 1280,
-      height: 720,
-    },
+      peerRef.current = new RTCPeerConnection({
+        iceServers: [
+          {
+            urls: [
+              "stun:stun.l.google.com:19302",
+              "stun:stun1.l.google.com:19302",
+            ],
+          },
+        ],
+      });
 
-    "360p": {
-      width: 640,
-      height: 360,
-    },
+      peerRef.current.onicecandidate = (event) => {
+        if (event.candidate) {
+          console.log("📤 Sending ICE candidate");
+          socketRef.current.emit("ice-candidate", {
+            targetUserId: remoteUserRef.current,
+            candidate: event.candidate,
+          });
+        }
+      };
+
+      peerRef.current.ontrack = (event) => {
+        const track = event.track;
+        console.log("📥 Track received:", track.kind);
+
+        if (track.kind === "audio") {
+          if (audioRef.current) {
+            audioRef.current.srcObject = event.streams[0];
+            audioRef.current.play().catch((e) => {
+              console.warn("⚠️ Auto-play failed:", e);
+            });
+          }
+        }
+
+        if (track.kind === "video") {
+          setRemoteScreenStream(event.streams[0]);
+          setFriendIsSharing(true);
+
+          track.onended = () => {
+            console.log("🎥 Screen track ended");
+            setRemoteScreenStream(null);
+            setFriendIsSharing(false);
+          };
+        }
+      };
+
+      stream.getTracks().forEach((track) => {
+        peerRef.current.addTrack(track, stream);
+        console.log("➕ Added", track.kind, "track");
+      });
+
+      console.log("📝 Creating offer...");
+      const offer = await peerRef.current.createOffer();
+      await peerRef.current.setLocalDescription(offer);
+
+      remoteUserRef.current = selectedFriend._id;
+      setInCall(true);
+      setIsMuted(false);
+
+      console.log("📤 Sending offer to", selectedFriend.username);
+      socketRef.current.emit("voice-offer", {
+        callerId: currentUser._id,
+        targetUserId: selectedFriend._id,
+        offer,
+      });
+    } catch (err) {
+      console.error("❌ Error starting call:", err);
+      alert("Failed to start call: " + err.message);
+    }
+  };
+
+  const acceptCall = async () => {
+    clearTimeout(callTimeoutRef.current);
+    ringtoneRef.current?.pause();
+    ringtoneRef.current.currentTime = 0;
+
+    const { offer, callerId } = incomingCall;
+
+    try {
+      console.log("☎️ Accepting call from", callerId);
+
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } catch (mediaErr) {
+        if (mediaErr.name === "NotAllowedError") {
+          alert("❌ Please allow microphone access");
+        } else {
+          alert("❌ Error accessing microphone: " + mediaErr.message);
+        }
+        declineCall();
+        return;
+      }
+
+      localStreamRef.current = stream;
+
+      peerRef.current = new RTCPeerConnection({
+        iceServers: [
+          {
+            urls: [
+              "stun:stun.l.google.com:19302",
+              "stun:stun1.l.google.com:19302",
+            ],
+          },
+        ],
+      });
+
+      peerRef.current.onicecandidate = (event) => {
+        if (event.candidate) {
+          console.log("📤 Sending ICE candidate");
+          socketRef.current.emit("ice-candidate", {
+            targetUserId: callerId,
+            candidate: event.candidate,
+          });
+        }
+      };
+
+      peerRef.current.ontrack = (event) => {
+        const track = event.track;
+        console.log("📥 Track received:", track.kind);
+
+        if (track.kind === "audio") {
+          if (audioRef.current) {
+            audioRef.current.srcObject = event.streams[0];
+            audioRef.current.play().catch((e) => {
+              console.warn("⚠️ Auto-play failed:", e);
+            });
+          }
+        }
+
+        if (track.kind === "video") {
+          setRemoteScreenStream(event.streams[0]);
+          setFriendIsSharing(true);
+
+          track.onended = () => {
+            setRemoteScreenStream(null);
+            setFriendIsSharing(false);
+          };
+        }
+      };
+
+      stream.getTracks().forEach((track) => {
+        peerRef.current.addTrack(track, stream);
+      });
+
+      console.log("📝 Processing offer and creating answer...");
+      await peerRef.current.setRemoteDescription(offer);
+      const answer = await peerRef.current.createAnswer();
+      await peerRef.current.setLocalDescription(answer);
+
+      console.log("📤 Sending answer...");
+      socketRef.current.emit("voice-answer", {
+        targetUserId: callerId,
+        answer,
+      });
+
+      setIncomingCall(null);
+      setInCall(true);
+      setIsMuted(false);
+
+      while (iceCandidateQueueRef.current.length > 0) {
+        const queuedCandidate = iceCandidateQueueRef.current.shift();
+        try {
+          await peerRef.current.addIceCandidate(
+            new RTCIceCandidate(queuedCandidate),
+          );
+        } catch (err) {
+          if (!err.message.includes("duplicate")) {
+            console.error("Error adding queued ICE:", err);
+          }
+        }
+      }
+
+      console.log("✅ Call accepted successfully");
+    } catch (err) {
+      console.error("❌ Error accepting call:", err);
+      alert("Failed to accept call: " + err.message);
+      declineCall();
+    }
+  };
+
+  const declineCall = () => {
+    clearTimeout(callTimeoutRef.current);
+    ringtoneRef.current?.pause();
+    ringtoneRef.current.currentTime = 0;
+
+    setIncomingCall(null);
+    socketRef.current.emit("cancel-call", {
+      targetUserId: incomingCall.callerId,
+    });
+  };
+
+  const endCall = () => {
+    console.log("☎️ Ending call");
+    clearTimeout(callTimeoutRef.current);
+
+    socketRef.current.emit("end-call", {
+      targetUserId: remoteUserRef.current,
+    });
+
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+        console.log("⏹️ Stopped local", track.kind);
+      });
+      localStreamRef.current = null;
+    }
+
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+        console.log("⏹️ Stopped screen", track.kind);
+      });
+      screenStreamRef.current = null;
+    }
+
+    if (peerRef.current) {
+      peerRef.current.close();
+      peerRef.current = null;
+      console.log("🔌 Peer connection closed");
+    }
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.srcObject = null;
+    }
+
+    iceCandidateQueueRef.current = [];
+    remoteUserRef.current = null;
+
+    setIsFullscreen(false);
+    setShowScreenShare(true);
+    setIsMuted(false);
+    setInCall(false);
+    setRemoteScreenStream(null);
+    setIsSharingScreen(false);
+    setFriendIsSharing(false);
+    setIsScreenShareTransitioning(false);
+
+    console.log("✅ Call ended and cleaned up");
   };
 
   const startScreenShare = async () => {
+    if (isScreenShareTransitioning) {
+      console.warn("⚠️ Screenshare transition already in progress");
+      return;
+    }
+
     try {
+      setIsScreenShareTransitioning(true);
+      console.log("🖥️ Starting screenshare at", shareQuality, "quality");
+
       const selected = qualityMap[shareQuality];
 
-      // Request display media with audio option based on user preference
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
-          width: selected.width,
-          height: selected.height,
+          width: { ideal: selected.width },
+          height: { ideal: selected.height },
+          frameRate: { ideal: 30 },
         },
-        audio: shareAudio ? true : false,
+        audio: shareAudio && {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
       });
 
       screenStreamRef.current = screenStream;
-
       setIsSharingScreen(true);
 
-      // Add screen video track to peer connection
       const screenTrack = screenStream.getVideoTracks()[0];
+      if (!screenTrack) {
+        throw new Error("No video track in screen stream");
+      }
+
       const sender = peerRef.current
         .getSenders()
         .find((s) => s.track && s.track.kind === "video");
 
       if (sender) {
-        // Replace existing video track if any
+        console.log("🔄 Replacing existing video track");
         await sender.replaceTrack(screenTrack);
       } else {
-        // Add as new track if no video track exists
+        console.log("➕ Adding new video track");
         peerRef.current.addTrack(screenTrack, screenStream);
       }
 
-      // If shareAudio was requested, the audio from screen share is already in the stream
-      // But we should keep the original voice audio, so don't add screen audio tracks
-      // Remove any audio tracks from screen stream to avoid conflicts
       screenStream.getAudioTracks().forEach((track) => {
         track.stop();
+      });
+
+      console.log("📢 Notifying remote peer of screenshare start");
+      socketRef.current.emit("screen-share-started", {
+        targetUserId: remoteUserRef.current,
       });
 
       await renegotiate();
 
       setShowShareModal(false);
-
-      console.log("Screen track added");
+      console.log("✅ Screenshare started");
 
       screenTrack.onended = () => {
-        console.log("Screen sharing stopped");
-        // Stop the screen share
+        console.log("🛑 User stopped screenshare");
         stopScreenShare();
       };
     } catch (err) {
-      console.log(err);
-      // User cancelled screen share dialog
+      console.error("❌ Screenshare error:", err);
+
       if (err.name === "NotAllowedError") {
-        console.log("Screen sharing cancelled by user");
+        console.log("User cancelled screenshare");
+      } else {
+        alert("Failed to share screen:\n\n" + err.message);
       }
+
+      setIsSharingScreen(false);
+      setShowShareModal(false);
+    } finally {
+      setIsScreenShareTransitioning(false);
     }
   };
 
   const stopScreenShare = async () => {
+    if (isScreenShareTransitioning) {
+      console.warn("⚠️ Screenshare transition in progress");
+      return;
+    }
+
     try {
-      if (!screenStreamRef.current) return;
+      setIsScreenShareTransitioning(true);
+      console.log("🛑 Stopping screenshare");
+
+      if (!screenStreamRef.current) {
+        console.warn("⚠️ No active screenshare");
+        return;
+      }
 
       screenStreamRef.current.getTracks().forEach((track) => {
         track.stop();
+        console.log("⏹️ Stopped", track.kind, "track");
       });
 
       const sender = peerRef.current
@@ -221,20 +463,26 @@ export default function Social({ setPage }) {
         .find((s) => s.track && s.track.kind === "video");
 
       if (sender) {
+        console.log("🔄 Removing video track from peer connection");
         await sender.replaceTrack(null);
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
       screenStreamRef.current = null;
       setIsSharingScreen(false);
 
-      // Tell the remote peer to actually clear their video, not just freeze
+      console.log("📢 Notifying remote peer of screenshare stop");
       socketRef.current.emit("screen-share-stopped", {
         targetUserId: remoteUserRef.current,
       });
 
       await renegotiate();
+
+      console.log("✅ Screenshare stopped");
     } catch (err) {
-      console.log("Error stopping screen share:", err);
+      console.error("❌ Error stopping screenshare:", err);
+    } finally {
+      setIsScreenShareTransitioning(false);
     }
   };
 
@@ -267,122 +515,6 @@ export default function Social({ setPage }) {
     }
   };
 
-  const startVoiceCall = async () => {
-    try {
-      console.log("START CALL CLICKED");
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-      });
-
-      localStreamRef.current = stream;
-      peerRef.current = new RTCPeerConnection({
-        iceServers: [
-          {
-            urls: "stun:stun.l.google.com:19302",
-          },
-        ],
-      });
-
-      peerRef.current.onicecandidate = (event) => {
-        if (event.candidate) {
-          console.log("Sending ICE");
-          socketRef.current.emit("ice-candidate", {
-            targetUserId: remoteUserRef.current,
-            candidate: event.candidate,
-          });
-        }
-      };
-
-      peerRef.current.ontrack = (event) => {
-        const track = event.track;
-
-        console.log("Track received:", track.kind);
-
-        if (track.kind === "audio") {
-          if (!audioRef.current) {
-            audioRef.current = new Audio();
-          }
-          audioRef.current.srcObject = event.streams[0];
-          audioRef.current
-            .play()
-            .catch((e) => console.log("Auto-play error:", e));
-        }
-
-        if (track.kind === "video") {
-          setRemoteScreenStream(event.streams[0]);
-          setFriendIsSharing(true);
-
-          track.onended = () => {
-            setRemoteScreenStream(null);
-            setFriendIsSharing(false);
-          };
-        }
-      };
-
-      console.log(peerRef.current);
-      console.log(stream);
-
-      setInCall(true);
-      setIsMuted(false);
-
-      stream.getTracks().forEach((track) => {
-        peerRef.current.addTrack(track, stream);
-      });
-
-      console.log(peerRef.current.getSenders());
-
-      console.log("CREATING OFFER");
-      const offer = await peerRef.current.createOffer();
-
-      await peerRef.current.setLocalDescription(offer);
-      console.log("LOCAL DESCRIPTION SET");
-      remoteUserRef.current = selectedFriend._id;
-      socketRef.current.emit("voice-offer", {
-        callerId: currentUser._id,
-        targetUserId: selectedFriend._id,
-        offer,
-      });
-      console.log("VOICE OFFER SENT");
-      console.log("TARGET:", selectedFriend._id);
-
-      console.log(offer);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-
-
-  const fetchUnreadCounts = async () => {
-    try {
-      const token = localStorage.getItem("token");
-
-      const { data } = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/chat/unread/counts`,
-        {
-          headers: {
-            Authorization: token,
-          },
-        },
-      );
-
-      const mapped = {};
-
-      data.forEach((item) => {
-        mapped[item._id] = item.count;
-      });
-      console.log(data);
-      setUnreadCounts(mapped);
-      console.log(data);
-    } catch (err) {
-      console.log(err);
-    }
-  };
-
-  useEffect(() => {
-    fetchUnreadCounts();
-  }, []);
-
   const viewProfile = async (userId) => {
     try {
       const token = localStorage.getItem("token");
@@ -401,193 +533,6 @@ export default function Social({ setPage }) {
       console.log(err);
     }
   };
-
-  useEffect(() => {
-    const socket = socketRef.current;
-
-    if (!socket) return;
-
-    socket.on("user-typing", ({ senderId }) => {
-      if (selectedFriend?._id === senderId) {
-        setTypingUser(senderId);
-
-        setTimeout(() => {
-          setTypingUser(null);
-        }, 3000);
-      }
-    });
-
-    return () => {
-      socket.off("user-typing");
-    };
-  }, [selectedFriend]);
-
-  useEffect(() => {
-    socketRef.current = io(import.meta.env.VITE_API_URL);
-
-    return () => {
-      socketRef.current.disconnect();
-    };
-  }, []);
-
-  useEffect(() => {
-    inCallRef.current = inCall;
-  }, [inCall]);
-
-  useEffect(() => {
-    ringtoneRef.current = new Audio("/ringtone.mp3");
-
-    ringtoneRef.current.loop = true;
-  }, []);
-
-
-  useEffect(() => {
-    messageSoundRef.current = new Audio("/notification.mp3");
-  }, []);
-
-  useEffect(() => {
-    socketRef.current.on("screen-share-stopped", () => {
-      console.log("Remote stopped sharing");
-
-      setRemoteScreenStream(null);
-      setFriendIsSharing(false);
-      setShowScreenShare(true);
-    });
-
-    return () => {
-      socketRef.current.off("screen-share-stopped");
-    };
-  }, []);
-
-  useEffect(() => {
-    const socket = socketRef.current;
-    if (!socket) return;
-
-    socket.on("incoming-ice-candidate", async ({ candidate }) => {
-      console.log("Received ICE");
-
-      if (!peerRef.current) {
-        console.log("Peer not ready yet, queueing ICE candidate");
-        iceCandidateQueueRef.current.push(candidate);
-        return;
-      }
-
-      // Only add ICE candidate if remote description is set
-      if (!peerRef.current.remoteDescription) {
-        console.log("Remote description not set yet, queueing ICE candidate");
-        iceCandidateQueueRef.current.push(candidate);
-        return;
-      }
-
-      try {
-        await peerRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-
-        console.log("ICE added");
-      } catch (err) {
-        console.error(err);
-      }
-    });
-
-    return () => {
-      socket.off("incoming-ice-candidate");
-    };
-  }, []);
-
-  useEffect(() => {
-    socketRef.current.on("incoming-voice-answer", async ({ answer }) => {
-      try {
-        console.log("Answer received");
-
-        if (peerRef.current.signalingState !== "have-local-offer") {
-          console.log("Skipping wrong state");
-          return;
-        }
-
-        await peerRef.current.setRemoteDescription(answer);
-
-        console.log("CALL CONNECTED 🎉");
-
-        // Process queued ICE candidates
-        while (iceCandidateQueueRef.current.length > 0) {
-          const queuedCandidate = iceCandidateQueueRef.current.shift();
-          try {
-            await peerRef.current.addIceCandidate(
-              new RTCIceCandidate(queuedCandidate),
-            );
-            console.log("Queued ICE added");
-          } catch (err) {
-            console.error(err);
-          }
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    });
-
-    return () => {
-      socketRef.current.off("incoming-voice-answer");
-    };
-  }, []);
-
-  useEffect(() => {
-    socketRef.current.on("call-cancelled", () => {
-      clearTimeout(callTimeoutRef.current);
-
-      ringtoneRef.current?.pause();
-      ringtoneRef.current.currentTime = 0;
-
-      setRemoteScreenStream(null);
-
-      setIsSharingScreen(false);
-
-      setFriendIsSharing(false);
-
-      peerRef.current?.close();
-
-      localStreamRef.current?.getTracks().forEach((track) => {
-        track.stop();
-      });
-
-      screenStreamRef.current?.getTracks().forEach((track) => {
-        track.stop();
-      });
-
-      screenStreamRef.current = null;
-
-      // Clean up audio element
-      if (audioRef.current) {
-        audioRef.current.srcObject = null;
-        audioRef.current.remove();
-        audioRef.current = null;
-      }
-
-      peerRef.current = null;
-      localStreamRef.current = null;
-      iceCandidateQueueRef.current = [];
-
-      setIncomingCall(null);
-      setInCall(false);
-      setIsMuted(false);
-
-      console.log("Caller cancelled");
-    });
-
-    return () => {
-      socketRef.current.off("call-cancelled");
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!socketRef.current) return;
-
-    socketRef.current.on("connect", () => {
-      socketRef.current.emit("user-online", currentUser._id);
-    });
-
-    return () => {
-      socketRef.current.off("connect");
-    };
-  }, []);
 
   const removeFriend = async (friendId) => {
     try {
@@ -608,272 +553,6 @@ export default function Social({ setPage }) {
       console.log(err);
     }
   };
-
-  useEffect(() => {
-    socketRef.current.on("online-users", (users) => {
-      setOnlineUsers(users);
-    });
-
-    return () => {
-      socketRef.current.off("online-users");
-    };
-  }, []);
-
-  useEffect(() => {
-    socketRef.current.on(
-      "incoming-voice-offer",
-      async ({ offer, callerId }) => {
-        console.log(
-          "Offer received",
-          inCallRef.current,
-          peerRef.current?.connectionState,
-        );
-        if (peerRef.current && peerRef.current.connectionState !== "closed") {
-          console.log("Renegotiation offer received");
-
-          await peerRef.current.setRemoteDescription(offer);
-
-          const answer = await peerRef.current.createAnswer();
-
-          await peerRef.current.setLocalDescription(answer);
-
-          socketRef.current.emit("voice-answer", {
-            targetUserId: callerId,
-            answer,
-          });
-
-          return;
-        }
-        console.log("INCOMING CALL RECEIVED");
-        remoteUserRef.current = callerId;
-
-        setIncomingCall({
-          offer,
-          callerId,
-        });
-
-        callTimeoutRef.current = setTimeout(() => {
-          ringtoneRef.current?.pause();
-          ringtoneRef.current.currentTime = 0;
-
-          setIncomingCall(null);
-
-          socketRef.current.emit("cancel-call", {
-            targetUserId: callerId,
-          });
-        }, 180000);
-        ringtoneRef.current?.play();
-      },
-    );
-
-    return () => {
-      socketRef.current.off("incoming-voice-offer");
-    };
-  }, []);
-
-  useEffect(() => {
-    socketRef.current.on("call-ended", () => {
-      peerRef.current?.close();
-
-      setRemoteScreenStream(null);
-
-      setIsSharingScreen(false);
-
-      setFriendIsSharing(false);
-
-      localStreamRef.current?.getTracks().forEach((track) => {
-        track.stop();
-      });
-
-      screenStreamRef.current?.getTracks().forEach((track) => {
-        track.stop();
-      });
-
-      screenStreamRef.current = null;
-
-      // Clean up audio element
-      if (audioRef.current) {
-        audioRef.current.srcObject = null;
-        audioRef.current.remove();
-        audioRef.current = null;
-      }
-
-      peerRef.current = null;
-      localStreamRef.current = null;
-      iceCandidateQueueRef.current = [];
-
-      setIsFullscreen(false);
-      setShowScreenShare(true);
-      setInCall(false);
-      setIsMuted(false);
-
-      console.log("Other user ended call");
-    });
-
-    return () => {
-      socketRef.current.off("call-ended");
-    };
-  }, []);
-
-  const declineCall = () => {
-    clearTimeout(callTimeoutRef.current);
-    ringtoneRef.current?.pause();
-    ringtoneRef.current.currentTime = 0;
-
-    setIncomingCall(null);
-    socketRef.current.emit("cancel-call", {
-      targetUserId: incomingCall.callerId,
-    });
-  };
-
-  const acceptCall = async () => {
-    clearTimeout(callTimeoutRef.current);
-    ringtoneRef.current?.pause();
-    ringtoneRef.current.currentTime = 0;
-    const { offer, callerId } = incomingCall;
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-      });
-
-      localStreamRef.current = stream;
-
-      peerRef.current = new RTCPeerConnection({
-        iceServers: [
-          {
-            urls: "stun:stun.l.google.com:19302",
-          },
-        ],
-      });
-
-      peerRef.current.onicecandidate = (event) => {
-        if (event.candidate) {
-          console.log("Sending ICE");
-
-          socketRef.current.emit("ice-candidate", {
-            targetUserId: callerId,
-            candidate: event.candidate,
-          });
-        }
-      };
-
-      peerRef.current.ontrack = (event) => {
-        const track = event.track;
-
-        console.log("Track received:", track.kind);
-
-        if (track.kind === "audio") {
-          if (!audioRef.current) {
-            audioRef.current = new Audio();
-          }
-          audioRef.current.srcObject = event.streams[0];
-          audioRef.current
-            .play()
-            .catch((e) => console.log("Auto-play error:", e));
-        }
-
-        if (track.kind === "video") {
-          setRemoteScreenStream(event.streams[0]);
-          setFriendIsSharing(true);
-
-          track.onended = () => {
-            setRemoteScreenStream(null);
-            setFriendIsSharing(false);
-          };
-        }
-      };
-
-      stream.getTracks().forEach((track) => {
-        peerRef.current.addTrack(track, stream);
-      });
-
-      console.log("Receiver peer created");
-
-      await peerRef.current.setRemoteDescription(offer);
-
-      console.log("Remote description set");
-
-      const answer = await peerRef.current.createAnswer();
-
-      await peerRef.current.setLocalDescription(answer);
-
-      console.log("Answer created");
-
-      socketRef.current.emit("voice-answer", {
-        targetUserId: callerId,
-        answer,
-      });
-
-      setIncomingCall(null);
-      setInCall(true);
-      setIsMuted(false);
-
-      // Process queued ICE candidates
-      while (iceCandidateQueueRef.current.length > 0) {
-        const queuedCandidate = iceCandidateQueueRef.current.shift();
-        try {
-          await peerRef.current.addIceCandidate(
-            new RTCIceCandidate(queuedCandidate),
-          );
-          console.log("Queued ICE added");
-        } catch (err) {
-          console.error(err);
-        }
-      }
-    } catch (err) {
-      console.error("Error accepting call:", err);
-    }
-  };
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: "smooth",
-    });
-  }, [messages]);
-
-  useEffect(() => {
-    if (!selectedFriend) return;
-
-    const fetchMessages = async () => {
-      const token = localStorage.getItem("token");
-
-      const { data } = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/chat/${selectedFriend._id}`,
-        {
-          headers: {
-            Authorization: token,
-          },
-        },
-      );
-
-      setMessages(data);
-      fetchUnreadCounts();
-    };
-
-    fetchMessages();
-  }, [selectedFriend]);
-
-  useEffect(() => {
-    const friendsList = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const response = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/social/friends`,
-          {
-            headers: {
-              Authorization: token,
-            },
-          },
-        );
-
-        setFriends(response.data);
-      } catch (err) {
-        console.log(err);
-      }
-    };
-    friendsList();
-  }, []);
 
   const acceptRequest = async (requestId) => {
     try {
@@ -976,7 +655,319 @@ export default function Social({ setPage }) {
     }
   };
 
+  // ============================================================
+  // USEEFFECTS - PROPER ORDER
+  // ============================================================
+
+  // 1. SOCKET CONNECTION FIRST
   useEffect(() => {
+    socketRef.current = io(import.meta.env.VITE_API_URL);
+
+    return () => {
+      socketRef.current.disconnect();
+    };
+  }, []);
+
+  // 2. THEN attach handlers
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    socketRef.current.on("connect", () => {
+      socketRef.current.emit("user-online", currentUser._id);
+    });
+
+    return () => {
+      socketRef.current.off("connect");
+    };
+  }, []);
+
+  // 3. Online users handler
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    socketRef.current.on("online-users", (users) => {
+      setOnlineUsers(users);
+    });
+
+    return () => {
+      socketRef.current.off("online-users");
+    };
+  }, []);
+
+  // 4. Incoming voice offer handler
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    socketRef.current.on("incoming-voice-offer", async ({ offer, callerId }) => {
+      console.log(
+        "Offer received",
+        inCallRef.current,
+        peerRef.current?.connectionState,
+      );
+      if (peerRef.current && peerRef.current.connectionState !== "closed") {
+        console.log("Renegotiation offer received");
+
+        await peerRef.current.setRemoteDescription(offer);
+
+        const answer = await peerRef.current.createAnswer();
+
+        await peerRef.current.setLocalDescription(answer);
+
+        socketRef.current.emit("voice-answer", {
+          targetUserId: callerId,
+          answer,
+        });
+
+        return;
+      }
+      console.log("INCOMING CALL RECEIVED");
+      remoteUserRef.current = callerId;
+
+      setIncomingCall({
+        offer,
+        callerId,
+      });
+
+      callTimeoutRef.current = setTimeout(() => {
+        ringtoneRef.current?.pause();
+        ringtoneRef.current.currentTime = 0;
+
+        setIncomingCall(null);
+
+        socketRef.current.emit("cancel-call", {
+          targetUserId: callerId,
+        });
+      }, 180000);
+      ringtoneRef.current?.play();
+    });
+
+    return () => {
+      socketRef.current.off("incoming-voice-offer");
+    };
+  }, []);
+
+  // 5. Incoming voice answer handler
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    socketRef.current.on("incoming-voice-answer", async ({ answer }) => {
+      try {
+        console.log("Answer received");
+
+        if (peerRef.current.signalingState !== "have-local-offer") {
+          console.log("Skipping wrong state");
+          return;
+        }
+
+        await peerRef.current.setRemoteDescription(answer);
+
+        console.log("CALL CONNECTED 🎉");
+
+        while (iceCandidateQueueRef.current.length > 0) {
+          const queuedCandidate = iceCandidateQueueRef.current.shift();
+          try {
+            await peerRef.current.addIceCandidate(
+              new RTCIceCandidate(queuedCandidate),
+            );
+            console.log("Queued ICE added");
+          } catch (err) {
+            console.error(err);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    return () => {
+      socketRef.current.off("incoming-voice-answer");
+    };
+  }, []);
+
+  // 6. ICE candidate handler
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    socketRef.current.on("incoming-ice-candidate", async ({ candidate }) => {
+      console.log("🧊 Received ICE candidate");
+
+      if (!peerRef.current) {
+        console.log("⏳ Peer not ready, queueing ICE");
+        iceCandidateQueueRef.current.push(candidate);
+        return;
+      }
+
+      if (!peerRef.current.remoteDescription) {
+        console.log("⏳ Remote description not set, queueing ICE");
+        iceCandidateQueueRef.current.push(candidate);
+        return;
+      }
+
+      try {
+        await peerRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+        console.log("✅ ICE candidate added");
+      } catch (err) {
+        if (err.message && err.message.includes("duplicate")) {
+          // Silently ignore duplicates
+        } else {
+          console.warn("⚠️ Error adding ICE candidate:", err.message);
+        }
+      }
+    });
+
+    return () => {
+      socketRef.current.off("incoming-ice-candidate");
+    };
+  }, []);
+
+  // 7. Call cancelled handler
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    socketRef.current.on("call-cancelled", () => {
+      clearTimeout(callTimeoutRef.current);
+
+      ringtoneRef.current?.pause();
+      ringtoneRef.current.currentTime = 0;
+
+      setRemoteScreenStream(null);
+      setIsSharingScreen(false);
+      setFriendIsSharing(false);
+
+      peerRef.current?.close();
+
+      localStreamRef.current?.getTracks().forEach((track) => {
+        track.stop();
+      });
+
+      screenStreamRef.current?.getTracks().forEach((track) => {
+        track.stop();
+      });
+
+      screenStreamRef.current = null;
+
+      if (audioRef.current) {
+        audioRef.current.srcObject = null;
+        audioRef.current.remove();
+        audioRef.current = null;
+      }
+
+      peerRef.current = null;
+      localStreamRef.current = null;
+      iceCandidateQueueRef.current = [];
+
+      setIncomingCall(null);
+      setInCall(false);
+      setIsMuted(false);
+
+      console.log("Caller cancelled");
+    });
+
+    return () => {
+      socketRef.current.off("call-cancelled");
+    };
+  }, []);
+
+  // 8. Call ended handler
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    socketRef.current.on("call-ended", () => {
+      peerRef.current?.close();
+
+      setRemoteScreenStream(null);
+      setIsSharingScreen(false);
+      setFriendIsSharing(false);
+
+      localStreamRef.current?.getTracks().forEach((track) => {
+        track.stop();
+      });
+
+      screenStreamRef.current?.getTracks().forEach((track) => {
+        track.stop();
+      });
+
+      screenStreamRef.current = null;
+
+      if (audioRef.current) {
+        audioRef.current.srcObject = null;
+        audioRef.current.remove();
+        audioRef.current = null;
+      }
+
+      peerRef.current = null;
+      localStreamRef.current = null;
+      iceCandidateQueueRef.current = [];
+
+      setIsFullscreen(false);
+      setShowScreenShare(true);
+      setInCall(false);
+      setIsMuted(false);
+
+      console.log("Other user ended call");
+    });
+
+    return () => {
+      socketRef.current.off("call-ended");
+    };
+  }, []);
+
+  // 9. Screen share stopped handler
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    socketRef.current.on("screen-share-stopped", () => {
+      console.log("Remote stopped sharing");
+
+      setRemoteScreenStream(null);
+      setFriendIsSharing(false);
+      setShowScreenShare(true);
+    });
+
+    return () => {
+      socketRef.current.off("screen-share-stopped");
+    };
+  }, []);
+
+  // 10. Screen share started handler
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    socketRef.current.on("screen-share-started", () => {
+      console.log("🖥️ Remote peer started screenshare");
+      setFriendIsSharing(true);
+    });
+
+    return () => {
+      socketRef.current.off("screen-share-started");
+    };
+  }, []);
+
+  // 11. Call error handler
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    socketRef.current.on("call-error", ({ message, code }) => {
+      console.error("❌ Call error:", code, message);
+      alert("Call error: " + message);
+
+      if (peerRef.current && peerRef.current.connectionState !== "closed") {
+        endCall();
+      }
+
+      setIncomingCall(null);
+      setInCall(false);
+    });
+
+    return () => {
+      socketRef.current.off("call-error");
+    };
+  }, []);
+
+  // 12. New message handler
+  useEffect(() => {
+    if (!socketRef.current) return;
+
     socketRef.current.off("new-message");
 
     socketRef.current.on("new-message", (message) => {
@@ -987,7 +978,6 @@ export default function Social({ setPage }) {
 
       if (!isCurrentChat) {
         messageSoundRef.current?.play();
-        fetchUnreadCounts();
       }
 
       if (isCurrentChat) {
@@ -1006,6 +996,157 @@ export default function Social({ setPage }) {
       socketRef.current.off("new-message");
     };
   }, [selectedFriend]);
+
+  // ============================================================
+  // AUDIO INITIALIZATION
+  // ============================================================
+
+  useEffect(() => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      audioRef.current.volume = 1.0;
+      audioRef.current.autoplay = true;
+      audioRef.current.playsInline = true;
+    }
+
+    return () => {
+      // Don't cleanup here - let endCall handle it
+    };
+  }, []);
+
+  // ============================================================
+  // CONNECTION STATE MONITORING
+  // ============================================================
+
+  useEffect(() => {
+    if (!peerRef.current) return;
+
+    const handleConnectionStateChange = () => {
+      const state = peerRef.current.connectionState;
+      console.log("🔗 Connection state:", state);
+
+      if (state === "failed") {
+        console.error("❌ Connection FAILED - attempting recovery");
+        if (inCallRef.current && remoteUserRef.current) {
+          renegotiate();
+        }
+      } else if (state === "disconnected") {
+        console.warn("⚠️ Connection DISCONNECTED");
+      } else if (state === "closed") {
+        console.log("Connection CLOSED");
+        setInCall(false);
+      } else if (state === "connected") {
+        console.log("✅ Connection ESTABLISHED");
+      }
+    };
+
+    const handleIceStateChange = () => {
+      const state = peerRef.current.iceConnectionState;
+      console.log("🧊 ICE state:", state);
+
+      if (state === "failed") {
+        console.error("❌ ICE FAILED");
+      } else if (state === "disconnected") {
+        console.warn("⚠️ ICE DISCONNECTED");
+      }
+    };
+
+    peerRef.current.onconnectionstatechange = handleConnectionStateChange;
+    peerRef.current.oniceconnectionstatechange = handleIceStateChange;
+
+    return () => {
+      if (peerRef.current) {
+        peerRef.current.onconnectionstatechange = null;
+        peerRef.current.oniceconnectionstatechange = null;
+      }
+    };
+  }, []);
+
+  // ============================================================
+  // HEARTBEAT (CRITICAL FOR LONG CALLS)
+  // ============================================================
+
+  useEffect(() => {
+    if (!inCall || !socketRef.current) return;
+
+    console.log("💓 Starting heartbeat...");
+
+    const heartbeatInterval = setInterval(() => {
+      socketRef.current.emit("connection-heartbeat", {
+        timestamp: Date.now(),
+      });
+    }, 30000); // Every 30 seconds
+
+    return () => {
+      clearInterval(heartbeatInterval);
+      console.log("💓 Heartbeat stopped");
+    };
+  }, [inCall]);
+
+  // ============================================================
+  // OTHER EFFECTS
+  // ============================================================
+
+  useEffect(() => {
+    inCallRef.current = inCall;
+  }, [inCall]);
+
+  useEffect(() => {
+    ringtoneRef.current = new Audio("/ringtone.mp3");
+    ringtoneRef.current.loop = true;
+  }, []);
+
+  useEffect(() => {
+    messageSoundRef.current = new Audio("/notification.mp3");
+  }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
+  }, [messages]);
+
+  useEffect(() => {
+    if (!selectedFriend) return;
+
+    const fetchMessages = async () => {
+      const token = localStorage.getItem("token");
+
+      const { data } = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/chat/${selectedFriend._id}`,
+        {
+          headers: {
+            Authorization: token,
+          },
+        },
+      );
+
+      setMessages(data);
+    };
+
+    fetchMessages();
+  }, [selectedFriend]);
+
+  useEffect(() => {
+    const friendsList = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/social/friends`,
+          {
+            headers: {
+              Authorization: token,
+            },
+          },
+        );
+
+        setFriends(response.data);
+      } catch (err) {
+        console.log(err);
+      }
+    };
+    friendsList();
+  }, []);
 
   useEffect(() => {
     const fetchRecommendations = async () => {
@@ -1030,7 +1171,6 @@ export default function Social({ setPage }) {
         );
 
         setRequests(requestData);
-
         setPlayers(data);
       } catch (err) {
         console.log(err);
@@ -1072,7 +1212,6 @@ export default function Social({ setPage }) {
   const displayedPlayers =
     filteredSocialSearch === "" ? players : socialSearchResults;
 
-  // Handle fullscreen change events
   useEffect(() => {
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) {
@@ -1297,24 +1436,11 @@ export default function Social({ setPage }) {
               <div ref={messagesEndRef} />
             </div>
 
-            {typingUser && (
-              <div className="typing-indicator">
-                {selectedFriend.username} is typing...
-              </div>
-            )}
-
             <div className="chat-input">
               <input
                 placeholder="Message..."
                 value={newMessage}
-                onChange={(e) => {
-                  setNewMessage(e.target.value);
-
-                  socketRef.current.emit("typing", {
-                    senderId: currentUser._id,
-                    receiverId: selectedFriend._id,
-                  });
-                }}
+                onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     sendMessage();
@@ -1360,32 +1486,7 @@ export default function Social({ setPage }) {
                   )}
                 </div>
 
-                <div className="friend-info">
-                  <div className="friend-name-row">
-                    <span className="friend-name">{friend.username}</span>
-
-                    {unreadCounts[friend._id] > 0 && (
-                      <div className="unread-badge">
-                        {unreadCounts[friend._id]}
-                      </div>
-                    )}
-                  </div>
-
-                  <span
-                    className={`friend-status ${
-                      onlineUsers.includes(friend._id) ? "online" : "offline"
-                    }`}
-                  >
-                    {onlineUsers.includes(friend._id)
-                      ? "Online"
-                      : friend.lastSeen
-                        ? `Last seen ${formatDistanceToNow(
-                            new Date(friend.lastSeen),
-                            { addSuffix: true },
-                          )}`
-                        : "Offline"}
-                  </span>
-                </div>
+                <span>{friend.username}</span>
               </div>
 
               {showMenu === friend._id && (
