@@ -7,6 +7,7 @@ import Profile from "./components/Profile";
 import Discover from "./components/Discover";
 import Social from "./components/Social";
 
+
 const App = () => {
   const token = localStorage.getItem("token");
 
