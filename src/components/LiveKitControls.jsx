@@ -23,38 +23,55 @@ export default function LiveKitControls({
   useEffect(() => {
     window.questprintCallControls = {
       toggleMute: async () => {
-        // BUG FIX #1: Fixed inverted mute logic
-        // When isMuted is true, we want to DISABLE the microphone
-        // When isMuted is false, we want to ENABLE the microphone
-        const newMutedState = !isMuted;
-        await room.localParticipant.setMicrophoneEnabled(!newMutedState);
-        setIsMuted(newMutedState);
+        try {
+          if (!room || !room.localParticipant) {
+            console.warn("toggleMute: room or localParticipant not ready");
+            return;
+          }
+
+          const newMutedState = !isMuted;
+          // enable microphone when newMutedState is false
+          await room.localParticipant.setMicrophoneEnabled(!newMutedState);
+          setIsMuted(newMutedState);
+        } catch (err) {
+          console.error("toggleMute failed:", err);
+        }
       },
 
       toggleStream: async () => {
-        const newStreamingState = !isStreaming;
-        
         try {
+          if (!room || !room.localParticipant) {
+            console.warn("toggleStream: room or localParticipant not ready");
+            return;
+          }
+
+          const newStreamingState = !isStreaming;
+
           if (!isStreaming) {
-            // Enable screen sharing
+            // start screen share
             await room.localParticipant.setScreenShareEnabled(true);
           } else {
-            // Disable screen sharing
+            // stop screen share
             await room.localParticipant.setScreenShareEnabled(false);
           }
-          
+
+          // only update UI state after successful API call
           setIsStreaming(newStreamingState);
         } catch (error) {
           console.error("Error toggling screen share:", error);
-          // Optionally revert state if toggle fails
         }
       },
 
       endCall: () => {
-        room.disconnect();
-        setLiveKitRoom(null);
-        setIsMuted(false);
-        setIsStreaming(false);
+        try {
+          if (room) room.disconnect();
+        } catch (err) {
+          console.warn("Error disconnecting room:", err);
+        } finally {
+          setLiveKitRoom(null);
+          setIsMuted(false);
+          setIsStreaming(false);
+        }
       },
     };
 
