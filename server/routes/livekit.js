@@ -21,9 +21,14 @@ router.get("/token", async (req, res) => {
       }
     );
 
+    // BUG FIX #5: Added missing permissions for screen sharing and publishing
+    // Without canPublish and canPublishScreenShare, users cannot stream
     token.addGrant({
       roomJoin: true,
       room,
+      canPublish: true,
+      canPublishScreenShare: true,
+      canSubscribe: true,
     });
 
     const jwt = await token.toJwt();

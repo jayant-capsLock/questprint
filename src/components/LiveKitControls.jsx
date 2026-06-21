@@ -3,9 +3,7 @@ import { useEffect } from "react";
 import { Track } from "livekit-client";
 import { useTracks } from "@livekit/components-react";
 
-export default function LiveKitCall({
-  roomName,
-  username,
+export default function LiveKitControls({
   isMuted,
   setIsMuted,
   isStreaming,
@@ -25,24 +23,35 @@ export default function LiveKitCall({
   useEffect(() => {
     window.questprintCallControls = {
       toggleMute: async () => {
-        await room.localParticipant.setMicrophoneEnabled(isMuted);
-
-        setIsMuted(!isMuted);
+        // BUG FIX #1: Fixed inverted mute logic
+        // When isMuted is true, we want to DISABLE the microphone
+        // When isMuted is false, we want to ENABLE the microphone
+        const newMutedState = !isMuted;
+        await room.localParticipant.setMicrophoneEnabled(!newMutedState);
+        setIsMuted(newMutedState);
       },
 
       toggleStream: async () => {
-        if (!isStreaming) {
-          await room.localParticipant.setScreenShareEnabled(true);
-        } else {
-          await room.localParticipant.setScreenShareEnabled(false);
+        const newStreamingState = !isStreaming;
+        
+        try {
+          if (!isStreaming) {
+            // Enable screen sharing
+            await room.localParticipant.setScreenShareEnabled(true);
+          } else {
+            // Disable screen sharing
+            await room.localParticipant.setScreenShareEnabled(false);
+          }
+          
+          setIsStreaming(newStreamingState);
+        } catch (error) {
+          console.error("Error toggling screen share:", error);
+          // Optionally revert state if toggle fails
         }
-
-        setIsStreaming(!isStreaming);
       },
 
       endCall: () => {
         room.disconnect();
-
         setLiveKitRoom(null);
         setIsMuted(false);
         setIsStreaming(false);
@@ -52,7 +61,7 @@ export default function LiveKitCall({
     return () => {
       delete window.questprintCallControls;
     };
-  }, [room, isMuted, isStreaming]);
+  }, [room, isMuted, isStreaming, setIsMuted, setIsStreaming, setLiveKitRoom]);
 
   return null;
 }

@@ -8,8 +8,6 @@ import {
 
 import LiveKitControls from "./LiveKitControls";
 
-
-
 import ScreenShareView from "./ScreenShareView";
 
 export default function LiveKitCall({
@@ -21,30 +19,45 @@ export default function LiveKitCall({
   setIsStreaming,
   setLiveKitRoom,
   setFriendStreaming,
+  showStream,
 }) {
   const [token, setToken] = useState(null);
-
- 
-
-
+  const [tokenError, setTokenError] = useState(null);
 
   useEffect(() => {
     const getToken = async () => {
-      const { data } = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/livekit/token`,
-        {
-          params: {
-            room: roomName,
-            username,
+      try {
+        const { data } = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/livekit/token`,
+          {
+            params: {
+              room: roomName,
+              username,
+            },
           },
-        },
-      );
+        );
 
-      setToken(data.token);
+        setToken(data.token);
+        setTokenError(null);
+      } catch (error) {
+        console.error("Failed to get LiveKit token:", error);
+        setTokenError(error.message);
+      }
     };
 
-    getToken();
+    if (roomName && username) {
+      getToken();
+    }
   }, [roomName, username]);
+
+  // BUG FIX #6: Added error state handling
+  if (tokenError) {
+    return (
+      <div className="error-message">
+        Failed to connect to call: {tokenError}
+      </div>
+    );
+  }
 
   if (!token) return null;
 
@@ -62,10 +75,13 @@ export default function LiveKitCall({
         isStreaming={isStreaming}
         setIsStreaming={setIsStreaming}
         setLiveKitRoom={setLiveKitRoom}
+        setFriendStreaming={setFriendStreaming}
       />
       <RoomAudioRenderer />
-      <ScreenShareView />
-      <VideoConference />
+
+      {/* BUG FIX #7: Always render ScreenShareView, let it handle visibility */}
+      {/* This ensures tracks are properly subscribed regardless of showStream */}
+      <ScreenShareView setFriendStreaming={setFriendStreaming} />
     </LiveKitRoom>
   );
 }

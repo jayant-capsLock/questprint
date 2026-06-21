@@ -553,14 +553,7 @@ export default function Social({ setPage }) {
                     {isStreaming ? "⏹ Stop Stream" : "🖥️ Stream"}
                   </button>
 
-                  {friendStreaming && (
-                    <button
-                      className="watch-stream-btn"
-                      onClick={() => setShowStream(!showStream)}
-                    >
-                      {showStream ? "🙈 Hide Stream" : "📺 Watch Stream"}
-                    </button>
-                  )}
+                  
 
                   <button
                     className="end-call-btn show"
@@ -808,6 +801,7 @@ export default function Social({ setPage }) {
             setIsStreaming={setIsStreaming}
             setLiveKitRoom={setLiveKitRoom}
             setFriendStreaming={setFriendStreaming}
+            showStream={showStream}
           />
         </div>
       )}
