@@ -1,5 +1,5 @@
 import { useRoomContext } from "@livekit/components-react";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Track } from "livekit-client";
 import { useTracks } from "@livekit/components-react";
 
@@ -20,6 +20,9 @@ export default function LiveKitControls({
     },
   ]);
 
+  const screenTrackRef = useRef(null);
+  const [isToggling, setIsToggling] = useState(false);
+
   useEffect(() => {
     window.questprintCallControls = {
       toggleMute: async () => {
@@ -30,7 +33,6 @@ export default function LiveKitControls({
           }
 
           const newMutedState = !isMuted;
-          // enable microphone when newMutedState is false
           await room.localParticipant.setMicrophoneEnabled(!newMutedState);
           setIsMuted(newMutedState);
         } catch (err) {
@@ -39,26 +41,72 @@ export default function LiveKitControls({
       },
 
       toggleStream: async () => {
+        if (isToggling) return;
+        if (!room || !room.localParticipant) {
+          console.warn("toggleStream: room or localParticipant not ready");
+          return;
+        }
+
+        setIsToggling(true);
+
         try {
-          if (!room || !room.localParticipant) {
-            console.warn("toggleStream: room or localParticipant not ready");
-            return;
-          }
-
-          const newStreamingState = !isStreaming;
-
           if (!isStreaming) {
-            // start screen share
-            await room.localParticipant.setScreenShareEnabled(true);
-          } else {
-            // stop screen share
-            await room.localParticipant.setScreenShareEnabled(false);
-          }
+            // Start screen share: prefer manual getDisplayMedia + publish for reliability
+            try {
+              const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+              const track = stream.getTracks()[0];
 
-          // only update UI state after successful API call
-          setIsStreaming(newStreamingState);
-        } catch (error) {
-          console.error("Error toggling screen share:", error);
+              // publish the track
+              const publication = await room.localParticipant.publishTrack(track, { simulcast: false });
+
+              screenTrackRef.current = { track, publication, stream };
+
+              setIsStreaming(true);
+            } catch (err) {
+              console.error("Failed to start screen share:", err);
+            }
+          } else {
+            // Stop screen share
+            if (screenTrackRef.current) {
+              try {
+                const pub = screenTrackRef.current.publication;
+                const track = screenTrackRef.current.track;
+
+                // try to unpublish using publication or track
+                try {
+                  if (pub && pub.track) {
+                    await room.localParticipant.unpublishTrack(pub.track);
+                  } else if (track) {
+                    await room.localParticipant.unpublishTrack(track);
+                  }
+                } catch (e) {
+                  console.warn("unpublishTrack failed, trying alternative detach:", e);
+                }
+
+                try { track?.stop(); } catch (e) {}
+                try { screenTrackRef.current.stream?.getTracks().forEach(t => t.stop()); } catch (e) {}
+              } finally {
+                screenTrackRef.current = null;
+              }
+
+              setIsStreaming(false);
+            } else {
+              // fallback to convenience API if available
+              if (typeof room.localParticipant.setScreenShareEnabled === "function") {
+                try {
+                  await room.localParticipant.setScreenShareEnabled(false);
+                } catch (e) {
+                  console.warn("fallback setScreenShareEnabled(false) failed:", e);
+                }
+              }
+
+              setIsStreaming(false);
+            }
+          }
+        } catch (err) {
+          console.error("toggleStream failed:", err);
+        } finally {
+          setIsToggling(false);
         }
       },
 
@@ -68,17 +116,38 @@ export default function LiveKitControls({
         } catch (err) {
           console.warn("Error disconnecting room:", err);
         } finally {
+          // cleanup any published screen track
+          try {
+            if (screenTrackRef.current?.track) {
+              try { screenTrackRef.current.track.stop(); } catch (e) {}
+              try { screenTrackRef.current.stream?.getTracks().forEach(t => t.stop()); } catch (e) {}
+            }
+          } catch (e) {
+            // ignore
+          }
+
+          screenTrackRef.current = null;
           setLiveKitRoom(null);
           setIsMuted(false);
           setIsStreaming(false);
         }
       },
+
+      _isToggling: () => isToggling,
     };
 
     return () => {
       delete window.questprintCallControls;
+      // ensure we stop any leftover track when the component unmounts
+      try {
+        if (screenTrackRef.current?.track) {
+          try { screenTrackRef.current.track.stop(); } catch (e) {}
+          try { screenTrackRef.current.stream?.getTracks().forEach(t => t.stop()); } catch (e) {}
+        }
+      } catch (e) {}
+      screenTrackRef.current = null;
     };
-  }, [room, isMuted, isStreaming, setIsMuted, setIsStreaming, setLiveKitRoom]);
+  }, [room, isMuted, isStreaming, setIsMuted, setIsStreaming, setLiveKitRoom, isToggling]);
 
   return null;
 }
