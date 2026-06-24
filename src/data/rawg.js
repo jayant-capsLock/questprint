@@ -1,4 +1,4 @@
-const API_KEY = "7865a2dbaee944eebf097722f31142c2";
+const API_KEY = "76cf93fce0a6408fbce5e953cd2e8ea1";
 
 export async function getGameImage(gameName) {
    const cachedImage = localStorage.getItem(`image-${gameName}`);
